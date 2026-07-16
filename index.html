@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>MV Bestell-Scanner — Phase 0: Scan-Test</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --card2: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --err: #ef4444;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100%;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; }
+  header h1 { font-size: 1.15rem; margin: 8px 0 2px; }
+  header p { margin: 0 0 14px; color: var(--muted); font-size: 0.85rem; }
+
+  #warning {
+    display: none;
+    background: #7c2d12; border: 1px solid var(--warn);
+    color: #fed7aa; padding: 12px 14px; border-radius: 12px;
+    font-size: 0.9rem; line-height: 1.4; margin-bottom: 14px;
+  }
+  #warning.show { display: block; }
+  #warning code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 5px; }
+
+  #reader {
+    width: 100%; border-radius: 16px; overflow: hidden;
+    background: #000; border: 1px solid var(--card2); min-height: 60px;
+  }
+  #reader video { width: 100% !important; display: block; border-radius: 16px; }
+
+  .controls { display: flex; gap: 10px; margin: 14px 0; }
+  button {
+    flex: 1; font-size: 1rem; font-weight: 600;
+    padding: 14px 12px; border-radius: 12px; border: none;
+    background: var(--accent); color: #0b1220; cursor: pointer;
+  }
+  button.secondary { background: var(--card2); color: var(--text); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:active { transform: translateY(1px); }
+
+  #zoomWrap {
+    display: none; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--card2);
+    border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
+  }
+  #zoomWrap .zoom-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+  #zoomRange { flex: 1; accent-color: var(--accent); }
+
+  .result {
+    background: var(--card); border: 1px solid var(--card2);
+    border-radius: 16px; padding: 18px; margin-bottom: 14px; text-align: center;
+  }
+  .result .label { font-size: 0.75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .result .code {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 1.9rem; font-weight: 700; word-break: break-all;
+    margin: 6px 0; color: var(--ok); min-height: 1.9rem;
+  }
+  .result .code.empty { color: var(--muted); font-size: 1.1rem; font-weight: 500; }
+  .result .format {
+    display: inline-block; background: var(--card2); color: var(--accent);
+    padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+  }
+  .result .format.hidden { visibility: hidden; }
+
+  .history-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 2px; }
+  .history-head h2 { font-size: 0.95rem; margin: 0; color: var(--muted); }
+  .history-head button { flex: 0; padding: 6px 12px; font-size: 0.8rem; background: transparent; color: var(--muted); border: 1px solid var(--card2); }
+  #history { list-style: none; margin: 0; padding: 0; }
+  #history li {
+    background: var(--card); border: 1px solid var(--card2);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  }
+  #history .h-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; word-break: break-all; }
+  #history .h-meta { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+  #history .h-fmt { color: var(--accent); font-size: 0.7rem; display: block; }
+  #history .empty-note { color: var(--muted); text-align: center; border-style: dashed; }
+
+  .result.success { border-color: var(--ok); background: #14311f; }
+
+  button.go { background: var(--ok); color: #052e16; }
+
+  #successFlash {
+    position: fixed; inset: 0; z-index: 50;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(34,197,94,.22); pointer-events: none;
+  }
+  #successFlash.show { display: flex; animation: flashFade .85s ease-out forwards; }
+  #successFlash .check {
+    width: 128px; height: 128px; border-radius: 50%;
+    background: var(--ok); color: #052e16;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 74px; font-weight: 700;
+    box-shadow: 0 0 0 14px rgba(34,197,94,.22);
+  }
+  @keyframes flashFade {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  .status { font-size: 0.8rem; color: var(--muted); text-align: center; min-height: 1.1rem; margin-top: 6px; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+  footer b { color: var(--text); }
+</style>
+</head>
+<body>
+<div id="successFlash"><div class="check">✓</div></div>
+<div class="wrap">
+  <header>
+    <h1>📷 MV Bestell-Scanner</h1>
+    <p>Phase 0 — Scan-Test. Prüft nur, ob Barcodes zuverlässig gelesen werden.</p>
+  </header>
+
+  <div id="warning">
+    <b>Kamera nicht verfügbar.</b> Die Kamera funktioniert im Browser nur über eine
+    <b>HTTPS-Adresse</b> (oder <code>localhost</code>). Wenn du diese Datei direkt vom Handy
+    als lokale Datei öffnest, blockieren iOS/Android die Kamera. Lade die Datei zum Testen
+    zu einem kostenlosen HTTPS-Host hoch (z.&nbsp;B. Netlify&nbsp;Drop) und öffne den Link.
+  </div>
+
+  <div id="reader"></div>
+
+  <div class="controls">
+    <button id="startBtn">Scan starten</button>
+    <button id="switchBtn" class="secondary" disabled>Kamera wechseln</button>
+  </div>
+
+  <div id="zoomWrap">
+    <span class="zoom-label">🔍 Zoom</span>
+    <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1">
+  </div>
+
+  <div class="result">
+    <div class="label">Zuletzt erkannt</div>
+    <div id="lastCode" class="code empty">— noch nichts gescannt —</div>
+    <div id="lastFormat" class="format hidden">—</div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="history-head">
+    <h2>Verlauf</h2>
+    <button id="clearBtn">Leeren</button>
+  </div>
+  <ul id="history"></ul>
+
+  <footer>
+    <b>So testest du:</b> Scanne nacheinander eine <b>EAN auf einer Verpackung</b> und ein
+    <b>eigenes MV-Etikett</b>. Achte darauf, ob beide sofort und korrekt erkannt werden und welches
+    <b>Format</b> angezeigt wird. Probiere es mit <b>iPhone, Firmen-iPad und einem Android</b>.
+    Gib mir danach durch, was geklappt hat und was nicht.
+    <br><br>
+    <b>Tipp bei Fokus-Problemen:</b> Halte den Barcode ruhig und nicht zu nah (ca. 10–20&nbsp;cm),
+    bis er scharf ist. Falls ein <b>Zoom-Regler</b> erscheint, hilft leichtes Heranzoomen bei
+    kleinen Barcodes oft mehr als näher herangehen.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var FMT = Html5QrcodeSupportedFormats;
+  // Formate: Verpackungs-EANs + gängige 1D-Codes für eigene MV-Etiketten + QR/DataMatrix als Reserve
+  var formats = [
+    FMT.EAN_13, FMT.EAN_8, FMT.UPC_A, FMT.UPC_E,
+    FMT.CODE_128, FMT.CODE_39, FMT.CODE_93, FMT.ITF, FMT.CODABAR,
+    FMT.QR_CODE, FMT.DATA_MATRIX
+  ];
+  var FORMAT_NAMES = {};
+  Object.keys(FMT).forEach(function (k) { if (typeof FMT[k] === "number") FORMAT_NAMES[FMT[k]] = k; });
+
+  var startBtn = document.getElementById("startBtn");
+  var switchBtn = document.getElementById("switchBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var lastCodeEl = document.getElementById("lastCode");
+  var lastFormatEl = document.getElementById("lastFormat");
+  var statusEl = document.getElementById("status");
+  var historyEl = document.getElementById("history");
+  var warningEl = document.getElementById("warning");
+  var successFlash = document.getElementById("successFlash");
+  var resultCard = document.querySelector(".result");
+  var zoomWrap = document.getElementById("zoomWrap");
+  var zoomRange = document.getElementById("zoomRange");
+
+  var scanner = null;
+  var running = false;
+  var stopping = false;
+  var cameras = [];
+  var camIndex = 0;
+  var lastValue = "";
+  var lastAt = 0;
+  var audioCtx = null;
+
+  function setStatus(msg) { statusEl.textContent = msg || ""; }
+
+  function isSecure() {
+    // getUserMedia braucht einen "secure context": https oder localhost
+    return window.isSecureContext === true ||
+           location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  }
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function nowTime() {
+    var d = new Date();
+    return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  }
+
+  function beep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      var o = audioCtx.createOscillator();
+      var g = audioCtx.createGain();
+      o.type = "square"; o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start();
+      o.stop(audioCtx.currentTime + 0.12);
+    } catch (e) { /* egal */ }
+  }
+
+  function qrboxFn(vw, vh) {
+    // Breites Rechteck — hilft dem Lesen von 1D-Barcodes (EAN/Code128)
+    var w = Math.floor(Math.min(vw, 420) * 0.85);
+    var h = Math.floor(Math.min(vh * 0.6, w * 0.55));
+    return { width: w, height: h };
+  }
+
+  function flashSuccess() {
+    successFlash.classList.remove("show");
+    void successFlash.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
+    successFlash.classList.add("show");
+    setTimeout(function () { successFlash.classList.remove("show"); }, 900);
+  }
+
+  function finishScan() {
+    // Kamera nach erfolgreichem Scan schließen — klares visuelles "fertig"-Signal
+    if (!scanner || !running || stopping) return;
+    stopping = true;
+    zoomWrap.style.display = "none";
+    scanner.stop().then(function () {
+      running = false; stopping = false;
+      resultCard.classList.add("success");
+      startBtn.textContent = "Nächsten Artikel scannen";
+      startBtn.classList.add("go");
+      startBtn.disabled = false;
+      switchBtn.disabled = true;
+    }).catch(function () {
+      running = false; stopping = false;
+      resultCard.classList.add("success");
+      startBtn.textContent = "Nächsten Artikel scannen";
+      startBtn.classList.add("go");
+      startBtn.disabled = false;
+    });
+  }
+
+  function onScan(decodedText, result) {
+    if (stopping || !running) return; // während des Schließens keine weiteren Treffer annehmen
+    var t = Date.now();
+    var fmtId = result && result.result && result.result.format ? result.result.format.format : null;
+    // gleiche Nummer nicht mehrfach hintereinander zählen
+    if (decodedText === lastValue && (t - lastAt) < 2000) { lastAt = t; return; }
+    lastValue = decodedText; lastAt = t;
+
+    var fmtName = (fmtId != null && FORMAT_NAMES[fmtId]) ? FORMAT_NAMES[fmtId] : "?";
+
+    lastCodeEl.textContent = decodedText;
+    lastCodeEl.classList.remove("empty");
+    lastFormatEl.textContent = fmtName;
+    lastFormatEl.classList.remove("hidden");
+
+    var li = document.createElement("li");
+    var left = document.createElement("div");
+    var code = document.createElement("span");
+    code.className = "h-code"; code.textContent = decodedText;
+    var fmt = document.createElement("span");
+    fmt.className = "h-fmt"; fmt.textContent = fmtName;
+    left.appendChild(code); left.appendChild(fmt);
+    var meta = document.createElement("span");
+    meta.className = "h-meta"; meta.textContent = nowTime();
+    li.appendChild(left); li.appendChild(meta);
+
+    var placeholder = historyEl.querySelector(".empty-note");
+    if (placeholder) historyEl.removeChild(placeholder);
+    historyEl.insertBefore(li, historyEl.firstChild);
+    while (historyEl.children.length > 20) historyEl.removeChild(historyEl.lastChild);
+
+    beep();
+    flashSuccess();
+    setStatus("✓ Erkannt: " + decodedText + " (" + fmtName + ") — Kamera gestoppt.");
+    finishScan();
+  }
+
+  function onScanError() { /* laufende "kein Code im Bild"-Meldungen ignorieren */ }
+
+  function startWith(deviceId) {
+    // WICHTIG: html5-qrcode erlaubt hier nur genau EINEN Schlüssel (deviceId ODER facingMode).
+    // Auflösung/Fokus werden erst NACH dem Start am laufenden Stream gesetzt (setupCameraCapabilities).
+    var cameraArg = deviceId ? deviceId : { facingMode: "environment" };
+    var config = { fps: 12, qrbox: qrboxFn, formatsToSupport: formats };
+    return scanner.start(cameraArg, config, onScan, onScanError);
+  }
+
+  function tryApply(constraints) {
+    // best effort — darf den laufenden Scan nie unterbrechen
+    try {
+      var p = scanner.applyVideoConstraints(constraints);
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) {}
+  }
+
+  function setupCameraCapabilities() {
+    // Hochauflösenden Stream + Autofokus nachträglich anfordern — entscheidend fürs Lesen dichter 1D-Barcodes
+    tryApply({ width: { ideal: 1920 }, height: { ideal: 1080 } });
+    tryApply({ advanced: [{ focusMode: "continuous" }] });
+
+    var caps = {};
+    try { caps = scanner.getRunningTrackCapabilities() || {}; } catch (e) {}
+    // Zoom-Regler nur anzeigen, wenn die Kamera Zoom unterstützt
+    if (caps.zoom && typeof caps.zoom.min === "number" && caps.zoom.max > caps.zoom.min) {
+      zoomRange.min = caps.zoom.min;
+      zoomRange.max = caps.zoom.max;
+      zoomRange.step = caps.zoom.step || 0.1;
+      zoomRange.value = caps.zoom.min;
+      zoomWrap.style.display = "flex";
+    } else {
+      zoomWrap.style.display = "none";
+    }
+  }
+
+  function applyZoom() {
+    try { scanner.applyVideoConstraints({ advanced: [{ zoom: parseFloat(zoomRange.value) }] }); } catch (e) {}
+  }
+
+  function startScanning() {
+    if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kein sicherer Kontext (HTTPS)."); return; }
+    if (running) return;
+
+    // grünen Erfolgs-Zustand zurücksetzen, gleichen Barcode wieder zulassen
+    resultCard.classList.remove("success");
+    startBtn.classList.remove("go");
+    lastValue = ""; lastAt = 0;
+
+    startBtn.disabled = true;
+    setStatus("Kamera wird gestartet …");
+
+    if (!scanner) scanner = new Html5Qrcode("reader", { formatsToSupport: formats, verbose: false });
+
+    Html5Qrcode.getCameras().then(function (devs) {
+      cameras = devs || [];
+      var deviceId = null;
+      if (cameras.length > 0) {
+        // bevorzugt Rückkamera
+        var backIdx = -1;
+        for (var i = 0; i < cameras.length; i++) {
+          var lbl = (cameras[i].label || "").toLowerCase();
+          if (lbl.indexOf("back") >= 0 || lbl.indexOf("rück") >= 0 || lbl.indexOf("environment") >= 0) { backIdx = i; break; }
+        }
+        camIndex = backIdx >= 0 ? backIdx : cameras.length - 1;
+        deviceId = cameras[camIndex].id;
+        switchBtn.disabled = cameras.length < 2;
+      }
+      return startWith(deviceId);
+    }).then(function () {
+      running = true;
+      startBtn.textContent = "Scan stoppen";
+      startBtn.disabled = false;
+      setStatus("Bereit — Barcode ins Bild halten.");
+      setupCameraCapabilities();
+    }).catch(function (err) {
+      startBtn.disabled = false;
+      handleStartError(err);
+    });
+  }
+
+  function handleStartError(err) {
+    var name = (err && err.name) ? err.name : "";
+    var msg = (err && err.message) ? err.message : String(err);
+    if (name === "NotAllowedError" || /permission|denied/i.test(msg)) {
+      setStatus("Kamerazugriff verweigert. Bitte in den Browser-Einstellungen erlauben.");
+    } else if (name === "NotFoundError" || /no camera|not found/i.test(msg)) {
+      setStatus("Keine Kamera gefunden.");
+    } else if (!isSecure()) {
+      warningEl.classList.add("show");
+      setStatus("Kamera braucht HTTPS.");
+    } else {
+      setStatus("Start fehlgeschlagen: " + msg);
+    }
+  }
+
+  function stopScanning() {
+    if (!scanner || !running) return;
+    startBtn.disabled = true;
+    zoomWrap.style.display = "none";
+    scanner.stop().then(function () {
+      running = false;
+      startBtn.textContent = "Scan starten";
+      startBtn.disabled = false;
+      setStatus("Gestoppt.");
+    }).catch(function () {
+      running = false;
+      startBtn.textContent = "Scan starten";
+      startBtn.disabled = false;
+    });
+  }
+
+  function switchCamera() {
+    if (!scanner || !running || cameras.length < 2) return;
+    switchBtn.disabled = true;
+    scanner.stop().then(function () {
+      camIndex = (camIndex + 1) % cameras.length;
+      return startWith(cameras[camIndex].id);
+    }).then(function () {
+      switchBtn.disabled = false;
+      setupCameraCapabilities();
+      var lbl = cameras[camIndex].label || ("Kamera " + (camIndex + 1));
+      setStatus("Kamera: " + lbl);
+    }).catch(function (err) {
+      switchBtn.disabled = false;
+      handleStartError(err);
+    });
+  }
+
+  function clearHistory() {
+    historyEl.innerHTML = "";
+    var li = document.createElement("li");
+    li.className = "empty-note"; li.textContent = "Noch keine Scans.";
+    historyEl.appendChild(li);
+    lastCodeEl.textContent = "— noch nichts gescannt —";
+    lastCodeEl.classList.add("empty");
+    lastFormatEl.classList.add("hidden");
+    lastValue = "";
+    setStatus("");
+  }
+
+  startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
+  switchBtn.addEventListener("click", switchCamera);
+  clearBtn.addEventListener("click", clearHistory);
+  zoomRange.addEventListener("input", applyZoom);
+
+  // Startzustand
+  clearHistory();
+  if (!isSecure()) warningEl.classList.add("show");
+})();
+</script>
+</body>
+</html>
