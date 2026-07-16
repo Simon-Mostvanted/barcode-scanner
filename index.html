@@ -38,6 +38,7 @@
   #warning.show { display: block; }
   #warning code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 5px; }
 
+  .reader-wrap { position: relative; }
   #reader {
     width: 100%; border-radius: 16px; overflow: hidden;
     background: #000; border: 1px solid var(--card2); min-height: 60px;
@@ -54,13 +55,21 @@
   button:disabled { opacity: .45; cursor: default; }
   button:active { transform: translateY(1px); }
 
+  /* Zoom-Regler: senkrecht, rechts über dem Kamerabild (wie native Kamera-App) */
   #zoomWrap {
-    display: none; align-items: center; gap: 12px;
-    background: var(--card); border: 1px solid var(--card2);
-    border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
+    position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 10px;
+    padding: 14px 8px; z-index: 20;
+    background: rgba(15,23,42,.55); border-radius: 999px;
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   }
-  #zoomWrap .zoom-label { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
-  #zoomRange { flex: 1; accent-color: var(--accent); }
+  #zoomWrap .zoom-label { font-size: 1.05rem; line-height: 1; }
+  #zoomRange {
+    -webkit-appearance: slider-vertical; appearance: slider-vertical;
+    writing-mode: vertical-lr; direction: rtl;
+    width: 28px; height: 150px; margin: 0; accent-color: var(--accent);
+    touch-action: none;
+  }
 
   .result {
     background: var(--card); border: 1px solid var(--card2);
@@ -137,16 +146,18 @@
     zu einem kostenlosen HTTPS-Host hoch (z.&nbsp;B. Netlify&nbsp;Drop) und öffne den Link.
   </div>
 
-  <div id="reader"></div>
+  <div class="reader-wrap">
+    <div id="reader"></div>
+    <div id="zoomWrap">
+      <span class="zoom-label">🔍</span>
+      <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1"
+             aria-label="Zoom" orient="vertical">
+    </div>
+  </div>
 
   <div class="controls">
     <button id="startBtn">Scan starten</button>
     <button id="switchBtn" class="secondary" disabled>Kamera wechseln</button>
-  </div>
-
-  <div id="zoomWrap">
-    <span class="zoom-label">🔍 Zoom</span>
-    <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1">
   </div>
 
   <div class="result">
