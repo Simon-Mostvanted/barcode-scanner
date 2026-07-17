@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
-<title>MV Bestell-Scanner — Phase 0: Scan-Test</title>
+<title>MV Bestell-Scanner — Phase 1: Artikel-Erkennung</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -28,6 +28,7 @@
   .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; }
   header h1 { font-size: 1.15rem; margin: 8px 0 2px; }
   header p { margin: 0 0 14px; color: var(--muted); font-size: 0.85rem; }
+  header .count { color: var(--accent); font-weight: 600; }
 
   #warning {
     display: none;
@@ -71,22 +72,34 @@
     touch-action: none;
   }
 
+  /* Manuelle Eingabe (Testen ohne Barcode) */
+  .manual { display: flex; gap: 10px; margin: 0 0 14px; }
+  .manual input {
+    flex: 1; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--card2); background: var(--card); color: var(--text);
+    font-size: 1rem;
+  }
+  .manual input::placeholder { color: var(--muted); }
+  .manual button { flex: 0 0 auto; padding: 12px 18px; }
+
+  /* Ergebnis-Karte */
   .result {
     background: var(--card); border: 1px solid var(--card2);
-    border-radius: 16px; padding: 18px; margin-bottom: 14px; text-align: center;
+    border-radius: 16px; padding: 18px; margin-bottom: 14px;
   }
-  .result .label { font-size: 0.75rem; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-  .result .code {
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 1.9rem; font-weight: 700; word-break: break-all;
-    margin: 6px 0; color: var(--ok); min-height: 1.9rem;
+  .result.hit  { border-color: var(--ok);   background: #14311f; }
+  .result.miss { border-color: var(--warn); background: #3a2a12; }
+  .res-badge { font-size: 0.78rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
+  .result.hit  .res-badge { color: var(--ok); }
+  .result.miss .res-badge { color: var(--warn); }
+  .res-name { font-size: 1.1rem; font-weight: 700; line-height: 1.3; margin: 8px 0 6px; }
+  .res-grid .row { display: flex; gap: 8px; padding: 2px 0; font-size: 0.9rem; }
+  .res-grid .k { color: var(--muted); flex: 0 0 108px; }
+  .res-grid .v { font-weight: 600; word-break: break-word; }
+  .res-code {
+    margin-top: 10px; font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.78rem; color: var(--muted); word-break: break-all;
   }
-  .result .code.empty { color: var(--muted); font-size: 1.1rem; font-weight: 500; }
-  .result .format {
-    display: inline-block; background: var(--card2); color: var(--accent);
-    padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
-  }
-  .result .format.hidden { visibility: hidden; }
 
   .history-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 2px; }
   .history-head h2 { font-size: 0.95rem; margin: 0; color: var(--muted); }
@@ -98,11 +111,20 @@
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   }
   #history .h-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; word-break: break-all; }
-  #history .h-meta { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
-  #history .h-fmt { color: var(--accent); font-size: 0.7rem; display: block; }
-  #history .empty-note { color: var(--muted); text-align: center; border-style: dashed; }
+  #history .h-name { display: block; font-size: 0.76rem; margin-top: 2px; }
+  #history .h-name.ok { color: var(--ok); }
+  #history .h-name.miss { color: var(--warn); }
+  #history .h-meta { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+  #history .empty-note { color: var(--muted); text-align: center; border-style: dashed; justify-content: center; }
 
-  .result.success { border-color: var(--ok); background: #14311f; }
+  /* Test-Barcodes */
+  .testcodes { margin-bottom: 16px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
+  .testcodes summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
+  .tc-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.45; margin: 4px 0 8px; }
+  #barcodes { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 0 12px; }
+  .bc { background: #fff; border-radius: 10px; padding: 10px 10px 6px; text-align: center; }
+  .bc svg { display: block; }
+  .bc .bc-label { color: #0b1220; font-size: 0.68rem; margin-top: 2px; max-width: 160px; line-height: 1.2; }
 
   button.go { background: var(--ok); color: #052e16; }
 
@@ -136,14 +158,15 @@
 <div class="wrap">
   <header>
     <h1>📷 MV Bestell-Scanner</h1>
-    <p>Phase 0 — Scan-Test. Prüft nur, ob Barcodes zuverlässig gelesen werden.</p>
+    <p>Phase 1 — Artikel-Erkennung. Gescannte/eingegebene Codes werden gegen
+       <span class="count" id="artCount">0</span> Test-Artikel geprüft.</p>
   </header>
 
   <div id="warning">
     <b>Kamera nicht verfügbar.</b> Die Kamera funktioniert im Browser nur über eine
-    <b>HTTPS-Adresse</b> (oder <code>localhost</code>). Wenn du diese Datei direkt vom Handy
-    als lokale Datei öffnest, blockieren iOS/Android die Kamera. Lade die Datei zum Testen
-    zu einem kostenlosen HTTPS-Host hoch (z.&nbsp;B. Netlify&nbsp;Drop) und öffne den Link.
+    <b>HTTPS-Adresse</b> (oder <code>localhost</code>). Öffne die Seite über deinen
+    GitHub-Pages-Link, nicht als lokale Datei. Die Artikel-Erkennung per Eingabefeld
+    unten funktioniert auch ohne Kamera.
   </div>
 
   <div class="reader-wrap">
@@ -160,13 +183,29 @@
     <button id="switchBtn" class="secondary" disabled>Kamera wechseln</button>
   </div>
 
-  <div class="result">
-    <div class="label">Zuletzt erkannt</div>
-    <div id="lastCode" class="code empty">— noch nichts gescannt —</div>
-    <div id="lastFormat" class="format hidden">—</div>
+  <div class="manual">
+    <input id="manualInput" type="text" autocomplete="off" autocapitalize="off"
+           placeholder="Artikelnummer eingeben (ohne Barcode testen)…">
+    <button id="manualBtn" class="secondary">Prüfen</button>
+  </div>
+
+  <div class="result" id="resultCard">
+    <div class="res-badge" id="resBadge">— noch nichts geprüft —</div>
+    <div class="res-name" id="resName"></div>
+    <div class="res-grid" id="resDetails"></div>
+    <div class="res-code" id="resCode"></div>
   </div>
 
   <div class="status" id="status"></div>
+
+  <details class="testcodes">
+    <summary>🧪 Test-Barcodes zum Abscannen</summary>
+    <p class="tc-hint">Diese Codes stammen aus echten Artikeln deines Stamms. Scanne sie mit dem
+      Handy direkt vom Bildschirm, um den ganzen Ablauf (Scan → Erkennung) zu testen — praktisch,
+      solange du keine gedruckten Etiketten zur Hand hast. Der letzte Code ist absichtlich
+      <b>nicht</b> im Stamm, damit du auch die „Unbekannt"-Meldung siehst.</p>
+    <div id="barcodes"></div>
+  </details>
 
   <div class="history-head">
     <h2>Verlauf</h2>
@@ -175,24 +214,64 @@
   <ul id="history"></ul>
 
   <footer>
-    <b>So testest du:</b> Scanne nacheinander eine <b>EAN auf einer Verpackung</b> und ein
-    <b>eigenes MV-Etikett</b>. Achte darauf, ob beide sofort und korrekt erkannt werden und welches
-    <b>Format</b> angezeigt wird. Probiere es mit <b>iPhone, Firmen-iPad und einem Android</b>.
-    Gib mir danach durch, was geklappt hat und was nicht.
+    <b>So testest du Phase 1:</b>
+    <br>1. <b>Ohne Barcode:</b> Tippe oben eine Artikelnummer ein (z.&nbsp;B. <code>100742</code> oder
+    <code>GES1758509</code>) → „Prüfen". Die App sollte den Artikel erkennen.
+    <br>2. <b>Mit Kamera:</b> Öffne „Test-Barcodes zum Abscannen", starte den Scan und halte das
+    Handy auf einen der Codes am Bildschirm.
+    <br>3. Probiere einen <b>unbekannten</b> Code (z.&nbsp;B. <code>99999999</code>) → es muss
+    „Unbekannter Code" erscheinen.
     <br><br>
-    <b>Tipp bei Fokus-Problemen:</b> Halte den Barcode ruhig und nicht zu nah (ca. 10–20&nbsp;cm),
-    bis er scharf ist. Falls ein <b>Zoom-Regler</b> erscheint, hilft leichtes Heranzoomen bei
-    kleinen Barcodes oft mehr als näher herangehen.
+    <b>Hinweis:</b> Die EAN auf einer Herstellerverpackung wird i.&nbsp;d.&nbsp;R. <b>nicht</b>
+    gefunden — im Artikelstamm gibt es (noch) keine EAN-Spalte. Der zuverlässige Weg ist später
+    das eigene MV-Etikett.
   </footer>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script>
 (function () {
   "use strict";
 
+  // ===== Testdaten: echter Ausschnitt aus dem Artikelstamm (34 Artikel) =====
+  var ARTICLES = [{"warengruppe":"Werkzeug","bezeichnung":"3M Rakel gold - 7 x 10 cm","artNrLieferant":"100742","artNrHersteller":"-","hersteller":"3M","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"5.89","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"NT-Cutter BD100 Klingen - 30° Breite: 9 mm","artNrLieferant":"101655","artNrHersteller":"-","hersteller":"NT-Cutter","lieferant":"4GM GmbH/Folienwelt.de","vpe":"5","ek":"0.33","lagerort":"Folien"},{"warengruppe":"Werkzeug","bezeichnung":"Orafol Rakel Squeegee grey plastic - 7 x 10 cm","artNrLieferant":"100744","artNrHersteller":"-","hersteller":"Orafol","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"1.09","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"10 Pcs 4mm Shank Single Flute Spiral End Mill Cutter Router Bits 22m","artNrLieferant":"","artNrHersteller":"-","hersteller":"","lieferant":"Ali express","vpe":"10","ek":"1.469","lagerort":"Tischlerei"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"Einschneidenfräser Ø 4mm, SL 22 mm","artNrLieferant":"","artNrHersteller":"","hersteller":"","lieferant":"Ali Express","vpe":"Stk.","ek":"1.51","lagerort":"Tischlerei"},{"warengruppe":"Anbauteile aussen","bezeichnung":"KERL 500 black (Zurröse für Airline)","artNrLieferant":"310285-0040","artNrHersteller":"","hersteller":"","lieferant":"allsafe GmbH & Co. KG","vpe":"40","ek":"4.625","lagerort":"Wst Wagen"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER. Protección frontal SPRINTER XW907 VS30 4MATIC","artNrLieferant":"PDMBS3A28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"540","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección caja cambio/transfer SPRINTER W907 VS30 4MATIC","artNrLieferant":"PDMBS3B28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"322.5","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección depósito SPRINTER 4x4 W906-W907 VS30 4Matic","artNrLieferant":"PDMBS23D6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"315","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección diferen. SPRINTER 4X4,2.2,3.0,2.04MATIC (NOT 5.5)","artNrLieferant":"PDMBS23DIF6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"180","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"Trittstufe elektrisch, Serie ETB, Transit v363","artNrLieferant":"101991","artNrHersteller":"","hersteller":"","lieferant":"alphadynamik","vpe":"1","ek":"982.1","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile aussen","bezeichnung":"ETB 0900 Sprinter 906/907","artNrLieferant":"102398","artNrHersteller":"-","hersteller":"","lieferant":"AlphaDynamik GmbH & Co. KG ","vpe":"1","ek":"816.2","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile innen","bezeichnung":"Aluminium Nutprofil 3030 Schwarz","artNrLieferant":"3030-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"lfm","ek":"12.23","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Aluminium Schwarz","artNrLieferant":"3030L-ALU BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.99","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Linsenkopfschrauben ISO 7380 M6x12 schwarz","artNrLieferant":"ISO 7380-M6X12 BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.1","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M8","artNrLieferant":"8-4-M8.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M6","artNrLieferant":"8-4-M6.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Schwarz","artNrLieferant":"3030L-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.52","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkelabdeckkappe 3030L","artNrLieferant":"3030L-COVER","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.17","lagerort":"Schweißerei"},{"warengruppe":"Sanitär Geräte","bezeichnung":"12 V – 2 Arten von Verbindungen – motorisiertes Ventil 12 V Elektromagnetventil, normalerweise geschlossen, 2-Wege-Ventil, motorisiert, 1/2 3/4 1 1-1/4 1-1/2 2 Zoll (3/4 Zoll DN20)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"28.478","lagerort":"Sanitär"},{"warengruppe":"Sanitär Geräte","bezeichnung":"2 Modi - 2 wege motorkugelhahn 12v zonenventil 2 wege ventil elektrisch 1/2 3/4 1 1-1/4 1-1/2 2 zoll (1 zoll DN25)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"33.76","lagerort":"Sanitär"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"2 Stück Kabelverschraubung für Anderson Stecker, 120A Hochstrom Schneller Kabelstecker, Zertifiziert Batterieanschluss Stecker, Schnellanschluss für Auto, Wohnwagen, Wohnmobil, Boot (grau)","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.09","lagerort":"Elektrolager"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"2 Stück Schwerlast Kugellagerscharniere 10cm, Bolatus Türscharnier Schwarz Edelstahl Scharniere Scharnier mit 8 Löchern für Massive Türen Gartentor Innen Außen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.62","lagerort":"Tischlerei"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"20 Rundknöpfe inkl. Schrauben - Planenknöpfe - perfekt zum Befestigen von Anhängernetzen und Planen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"20","ek":"0.54","lagerort":"Tischlerei"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"AUPROTEC KFZ Kabel 2x4,0 mm² 50m flach FLRYY I Flachkabel Schlauchleitung/Fahrzeugleitung Verschiedene Anwendungen I 2 poliges Kabel für Anhänger geeignet","artNrLieferant":"-","artNrHersteller":"57993478386682","hersteller":"","lieferant":"Amazon","vpe":"m","ek":"2.305","lagerort":"Elektrolager"},{"warengruppe":"Sanitär installationsmaterial","bezeichnung":"VIOKS Panzerschlauch 1/2 Zoll (19,3mm) ÜM x M10 30 cm & Wasserschlauch Flexibel Trinkwasserschlauch Flexschlauch fuer WC Spülkasten Waschbecken Küchenarmatur Bad & Wasserhahn Anschlussschlauch","artNrLieferant":"-","artNrHersteller":"B07RZS283R","hersteller":"","lieferant":"Amazon","vpe":"","ek":"7.98","lagerort":"Sanitär"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"Hülsenmuttern für Bullauge mit Senkkopf und Innensechskant (ISK) - Antrieb - M4x12 - (10 Stück) - aus rostfreiem Edelstahl A1 (VA) - NIRO - SC9062 | SC-Normteile®","artNrLieferant":"-","artNrHersteller":"FBA-9062-1-040-012-10","hersteller":"SC Normteile","lieferant":"amazon","vpe":"1","ek":"1.289","lagerort":"Tischlerei"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"GESIPA G-Sealed Blindnietmutter Stahl - Flachrundkopf","artNrLieferant":"GES1758509","artNrHersteller":"1758509","hersteller":"","lieferant":"Bauportal24","vpe":"100","ek":"0.32","lagerort":"WST Wagen"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob Verschlussstopfen 50 St.","artNrLieferant":"4024092137600","artNrHersteller":"WJ-DM 20-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.17","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob WJ-DM 16-VPA/SW Verschlussstopfen 50 St.","artNrLieferant":"4024092156311","artNrHersteller":"WJ-DM 16-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.15","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Icotek KEL-DPZ 40/8 Kabeldurchführungsplatte Klemm-Ø (max.) 10.2 mm Polyamid, Elastomer Grau 1 St.","artNrLieferant":"418836 - 62","artNrHersteller":"43741","hersteller":"","lieferant":"Conrad","vpe":"1","ek":"19.32","lagerort":"Elektrolager"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin DashCam Tandem","artNrLieferant":"119196","artNrHersteller":"010-02259-01","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"261","lagerort":"Palettenregal"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Garmin Parking Mode Kabel","artNrLieferant":"108171","artNrHersteller":"010-12530-03","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"22","lagerort":"Palettenregal"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin Tread XL Overland Edition","artNrLieferant":"140206","artNrHersteller":"010-02509-10","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"1105","lagerort":"Palettenregal"}];
+
+  // ===== Artikel-Index (Normalisierung + Nachschlagen) =====
+  function norm(s) { return (s == null ? "" : String(s)).trim().toUpperCase().replace(/\s+/g, " "); }
+  function normLoose(s) { return norm(s).replace(/\s+/g, ""); }
+
+  var idx = Object.create(null); // kein Prototyp → keine Kollision mit "constructor" o.ä.
+  function addToIndex(code, article, field) {
+    if (code == null) return;
+    var c = String(code).trim();
+    if (c === "" || c === "-") return; // "-" ist keine echte Nummer
+    var n = norm(c);
+    if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
+    var nl = normLoose(c);
+    if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
+  }
+  function buildIndex() {
+    ARTICLES.forEach(function (a) {
+      addToIndex(a.artNrLieferant, a, "Lieferanten-Nr");
+      addToIndex(a.artNrHersteller, a, "Hersteller-Nr");
+    });
+  }
+  function lookup(code) {
+    var n = norm(code);
+    if (idx[n]) return idx[n];
+    var nl = normLoose(code);
+    return idx[nl] || null;
+  }
+
+  function escapeHtml(s) {
+    return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // ===== DOM =====
   var FMT = Html5QrcodeSupportedFormats;
-  // Formate: Verpackungs-EANs + gängige 1D-Codes für eigene MV-Etiketten + QR/DataMatrix als Reserve
   var formats = [
     FMT.EAN_13, FMT.EAN_8, FMT.UPC_A, FMT.UPC_E,
     FMT.CODE_128, FMT.CODE_39, FMT.CODE_93, FMT.ITF, FMT.CODABAR,
@@ -204,15 +283,21 @@
   var startBtn = document.getElementById("startBtn");
   var switchBtn = document.getElementById("switchBtn");
   var clearBtn = document.getElementById("clearBtn");
-  var lastCodeEl = document.getElementById("lastCode");
-  var lastFormatEl = document.getElementById("lastFormat");
   var statusEl = document.getElementById("status");
   var historyEl = document.getElementById("history");
   var warningEl = document.getElementById("warning");
   var successFlash = document.getElementById("successFlash");
-  var resultCard = document.querySelector(".result");
+  var resultCard = document.getElementById("resultCard");
+  var resBadge = document.getElementById("resBadge");
+  var resName = document.getElementById("resName");
+  var resDetails = document.getElementById("resDetails");
+  var resCode = document.getElementById("resCode");
   var zoomWrap = document.getElementById("zoomWrap");
   var zoomRange = document.getElementById("zoomRange");
+  var manualInput = document.getElementById("manualInput");
+  var manualBtn = document.getElementById("manualBtn");
+  var barcodesEl = document.getElementById("barcodes");
+  var artCountEl = document.getElementById("artCount");
 
   var scanner = null;
   var running = false;
@@ -226,7 +311,6 @@
   function setStatus(msg) { statusEl.textContent = msg || ""; }
 
   function isSecure() {
-    // getUserMedia braucht einen "secure context": https oder localhost
     return window.isSecureContext === true ||
            location.hostname === "localhost" || location.hostname === "127.0.0.1";
   }
@@ -251,7 +335,6 @@
   }
 
   function qrboxFn(vw, vh) {
-    // Breites Rechteck — hilft dem Lesen von 1D-Barcodes (EAN/Code128)
     var w = Math.floor(Math.min(vw, 420) * 0.85);
     var h = Math.floor(Math.min(vh * 0.6, w * 0.55));
     return { width: w, height: h };
@@ -259,26 +342,86 @@
 
   function flashSuccess() {
     successFlash.classList.remove("show");
-    void successFlash.offsetWidth; // Reflow erzwingen, damit die Animation neu startet
+    void successFlash.offsetWidth;
     successFlash.classList.add("show");
     setTimeout(function () { successFlash.classList.remove("show"); }, 900);
   }
 
+  // ===== Erkennung anzeigen =====
+  function detailRow(k, v) {
+    if (v == null || v === "" || v === "-") return "";
+    return '<div class="row"><span class="k">' + k + '</span><span class="v">' + escapeHtml(v) + "</span></div>";
+  }
+
+  function showResult(code, fmtName, hit) {
+    if (hit) {
+      var a = hit.article;
+      resultCard.className = "result hit";
+      resBadge.textContent = "✓ Erkannt";
+      resName.textContent = a.bezeichnung;
+      resDetails.innerHTML =
+        detailRow("Lieferant", a.lieferant) +
+        detailRow("Hersteller", a.hersteller) +
+        detailRow("Warengruppe", a.warengruppe) +
+        detailRow("Lagerort", a.lagerort) +
+        detailRow("EK (exkl.)", a.ek ? a.ek + " €" : "") +
+        detailRow("VPE", a.vpe);
+      resCode.textContent = "Code: " + code + (fmtName ? " · " + fmtName : "") +
+        " · Treffer über " + hit.matchField + " (" + hit.matchValue + ")";
+    } else {
+      resultCard.className = "result miss";
+      resBadge.textContent = "✗ Unbekannter Code";
+      resName.textContent = "";
+      resDetails.innerHTML =
+        '<div class="row"><span class="v" style="font-weight:500;color:var(--muted)">' +
+        "Nicht im Artikelstamm gefunden. Später kann dieser Code als neue Position für den Besteller notiert werden." +
+        "</span></div>";
+      resCode.textContent = "Code: " + code + (fmtName ? " · " + fmtName : "");
+    }
+  }
+
+  function addHistory(code, fmtName, hit) {
+    var placeholder = historyEl.querySelector(".empty-note");
+    if (placeholder) historyEl.removeChild(placeholder);
+
+    var li = document.createElement("li");
+    var left = document.createElement("div");
+    var codeEl = document.createElement("span");
+    codeEl.className = "h-code"; codeEl.textContent = code;
+    var nameEl = document.createElement("span");
+    nameEl.className = "h-name " + (hit ? "ok" : "miss");
+    nameEl.textContent = hit ? hit.article.bezeichnung : "nicht im Stamm";
+    left.appendChild(codeEl); left.appendChild(nameEl);
+    var meta = document.createElement("span");
+    meta.className = "h-meta"; meta.textContent = nowTime() + (fmtName ? " · " + fmtName : "");
+    li.appendChild(left); li.appendChild(meta);
+
+    historyEl.insertBefore(li, historyEl.firstChild);
+    while (historyEl.children.length > 25) historyEl.removeChild(historyEl.lastChild);
+  }
+
+  function handleCode(rawCode, fmtName, source) {
+    var code = (rawCode == null ? "" : String(rawCode)).trim();
+    if (!code) return null;
+    var hit = lookup(code);
+    showResult(code, fmtName, hit);
+    addHistory(code, fmtName, hit);
+    return hit;
+  }
+
+  // ===== Kamera =====
   function finishScan() {
-    // Kamera nach erfolgreichem Scan schließen — klares visuelles "fertig"-Signal
     if (!scanner || !running || stopping) return;
     stopping = true;
     zoomWrap.style.display = "none";
     scanner.stop().then(function () {
       running = false; stopping = false;
-      resultCard.classList.add("success");
       startBtn.textContent = "Nächsten Artikel scannen";
       startBtn.classList.add("go");
       startBtn.disabled = false;
       switchBtn.disabled = true;
     }).catch(function () {
       running = false; stopping = false;
-      resultCard.classList.add("success");
       startBtn.textContent = "Nächsten Artikel scannen";
       startBtn.classList.add("go");
       startBtn.disabled = false;
@@ -286,54 +429,30 @@
   }
 
   function onScan(decodedText, result) {
-    if (stopping || !running) return; // während des Schließens keine weiteren Treffer annehmen
+    if (stopping || !running) return;
     var t = Date.now();
     var fmtId = result && result.result && result.result.format ? result.result.format.format : null;
-    // gleiche Nummer nicht mehrfach hintereinander zählen
     if (decodedText === lastValue && (t - lastAt) < 2000) { lastAt = t; return; }
     lastValue = decodedText; lastAt = t;
 
     var fmtName = (fmtId != null && FORMAT_NAMES[fmtId]) ? FORMAT_NAMES[fmtId] : "?";
-
-    lastCodeEl.textContent = decodedText;
-    lastCodeEl.classList.remove("empty");
-    lastFormatEl.textContent = fmtName;
-    lastFormatEl.classList.remove("hidden");
-
-    var li = document.createElement("li");
-    var left = document.createElement("div");
-    var code = document.createElement("span");
-    code.className = "h-code"; code.textContent = decodedText;
-    var fmt = document.createElement("span");
-    fmt.className = "h-fmt"; fmt.textContent = fmtName;
-    left.appendChild(code); left.appendChild(fmt);
-    var meta = document.createElement("span");
-    meta.className = "h-meta"; meta.textContent = nowTime();
-    li.appendChild(left); li.appendChild(meta);
-
-    var placeholder = historyEl.querySelector(".empty-note");
-    if (placeholder) historyEl.removeChild(placeholder);
-    historyEl.insertBefore(li, historyEl.firstChild);
-    while (historyEl.children.length > 20) historyEl.removeChild(historyEl.lastChild);
+    var hit = handleCode(decodedText, fmtName, "scan");
 
     beep();
     flashSuccess();
-    setStatus("✓ Erkannt: " + decodedText + " (" + fmtName + ") — Kamera gestoppt.");
+    setStatus((hit ? "✓ Erkannt: " + hit.article.bezeichnung : "✗ Unbekannt: " + decodedText) + " — Kamera gestoppt.");
     finishScan();
   }
 
   function onScanError() { /* laufende "kein Code im Bild"-Meldungen ignorieren */ }
 
   function startWith(deviceId) {
-    // WICHTIG: html5-qrcode erlaubt hier nur genau EINEN Schlüssel (deviceId ODER facingMode).
-    // Auflösung/Fokus werden erst NACH dem Start am laufenden Stream gesetzt (setupCameraCapabilities).
     var cameraArg = deviceId ? deviceId : { facingMode: "environment" };
     var config = { fps: 12, qrbox: qrboxFn, formatsToSupport: formats };
     return scanner.start(cameraArg, config, onScan, onScanError);
   }
 
   function tryApply(constraints) {
-    // best effort — darf den laufenden Scan nie unterbrechen
     try {
       var p = scanner.applyVideoConstraints(constraints);
       if (p && p.catch) p.catch(function () {});
@@ -341,13 +460,10 @@
   }
 
   function setupCameraCapabilities() {
-    // Hochauflösenden Stream + Autofokus nachträglich anfordern — entscheidend fürs Lesen dichter 1D-Barcodes
     tryApply({ width: { ideal: 1920 }, height: { ideal: 1080 } });
     tryApply({ advanced: [{ focusMode: "continuous" }] });
-
     var caps = {};
     try { caps = scanner.getRunningTrackCapabilities() || {}; } catch (e) {}
-    // Zoom-Regler nur anzeigen, wenn die Kamera Zoom unterstützt
     if (caps.zoom && typeof caps.zoom.min === "number" && caps.zoom.max > caps.zoom.min) {
       zoomRange.min = caps.zoom.min;
       zoomRange.max = caps.zoom.max;
@@ -367,8 +483,6 @@
     if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kein sicherer Kontext (HTTPS)."); return; }
     if (running) return;
 
-    // grünen Erfolgs-Zustand zurücksetzen, gleichen Barcode wieder zulassen
-    resultCard.classList.remove("success");
     startBtn.classList.remove("go");
     lastValue = ""; lastAt = 0;
 
@@ -381,7 +495,6 @@
       cameras = devs || [];
       var deviceId = null;
       if (cameras.length > 0) {
-        // bevorzugt Rückkamera
         var backIdx = -1;
         for (var i = 0; i < cameras.length; i++) {
           var lbl = (cameras[i].label || "").toLowerCase();
@@ -452,24 +565,72 @@
     });
   }
 
+  function resetResult() {
+    resultCard.className = "result";
+    resBadge.textContent = "— noch nichts geprüft —";
+    resName.textContent = "";
+    resDetails.innerHTML = "";
+    resCode.textContent = "";
+  }
+
   function clearHistory() {
     historyEl.innerHTML = "";
     var li = document.createElement("li");
-    li.className = "empty-note"; li.textContent = "Noch keine Scans.";
+    li.className = "empty-note"; li.textContent = "Noch keine Prüfungen.";
     historyEl.appendChild(li);
-    lastCodeEl.textContent = "— noch nichts gescannt —";
-    lastCodeEl.classList.add("empty");
-    lastFormatEl.classList.add("hidden");
+    resetResult();
     lastValue = "";
     setStatus("");
   }
 
+  // ===== Manuelle Eingabe =====
+  function doManual() {
+    var v = manualInput.value.trim();
+    if (!v) { manualInput.focus(); return; }
+    lastValue = ""; // manuelle Prüfung immer zulassen
+    handleCode(v, null, "manual");
+    setStatus("Manuell geprüft: " + v);
+  }
+
+  // ===== Test-Barcodes rendern =====
+  var TEST_CODES = [
+    { code: "100742", note: "3M Rakel gold (Lief.-Nr)" },
+    { code: "101655", note: "NT-Cutter Klingen (Lief.-Nr)" },
+    { code: "4024092137600", note: "Jacob Verschlussstopfen" },
+    { code: "GES1758509", note: "GESIPA Blindnietmutter (Lief.-Nr)" },
+    { code: "99999999", note: "Absichtlich unbekannt" }
+  ];
+  function renderBarcodes() {
+    if (typeof JsBarcode === "undefined") {
+      barcodesEl.innerHTML = '<p class="tc-hint" style="color:var(--warn)">Barcode-Bibliothek konnte nicht geladen werden (Internet?). Nutze solange das Eingabefeld oben zum Testen.</p>';
+      return;
+    }
+    TEST_CODES.forEach(function (tc) {
+      var card = document.createElement("div");
+      card.className = "bc";
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      card.appendChild(svg);
+      var lbl = document.createElement("div");
+      lbl.className = "bc-label"; lbl.textContent = tc.note;
+      card.appendChild(lbl);
+      barcodesEl.appendChild(card);
+      try {
+        JsBarcode(svg, tc.code, { format: "CODE128", width: 2, height: 50, fontSize: 13, margin: 6 });
+      } catch (e) { lbl.textContent = "Fehler: " + tc.code; }
+    });
+  }
+
+  // ===== Events + Init =====
   startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
   switchBtn.addEventListener("click", switchCamera);
   clearBtn.addEventListener("click", clearHistory);
   zoomRange.addEventListener("input", applyZoom);
+  manualBtn.addEventListener("click", doManual);
+  manualInput.addEventListener("keydown", function (e) { if (e.key === "Enter") doManual(); });
 
-  // Startzustand
+  buildIndex();
+  artCountEl.textContent = ARTICLES.length;
+  renderBarcodes();
   clearHistory();
   if (!isSecure()) warningEl.classList.add("show");
 })();
