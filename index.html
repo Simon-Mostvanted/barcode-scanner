@@ -151,6 +151,8 @@
   .cg-mini { width: auto; padding: 7px 10px; font-size: 0.76rem; background: var(--card2); color: var(--text); }
   .cg-mini.ok { background: var(--ok); color: #052e16; }
   .badge.done { background: #14311f; color: #86efac; border: 1px solid var(--ok); }
+  .v-notiz { font-size: 0.82rem; margin-top: 6px; color: #fde68a; background: #3a2a12; border: 1px solid var(--warn); border-radius: 8px; padding: 5px 9px; }
+  .v-notizbtn { margin-top: 8px; width: auto; padding: 6px 12px; font-size: 0.76rem; background: transparent; border: 1px solid var(--card2); color: var(--muted); }
 
   .testcodes { margin-top: 18px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
   .testcodes summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
@@ -550,7 +552,22 @@
       "<span>" + escapeHtml(v.melder) + " · " + fmtDate(v.created_at) + "</span>";
     li.appendChild(meta);
     if (v.kommentar) { var c = document.createElement("div"); c.className = "v-comment"; c.textContent = "💬 " + v.kommentar; li.appendChild(c); }
+    if (v.besteller_notiz) { var n = document.createElement("div"); n.className = "v-notiz"; n.textContent = "📝 " + v.besteller_notiz; li.appendChild(n); }
+    if (forAdmin) {
+      var nb = document.createElement("button"); nb.className = "v-notizbtn";
+      nb.textContent = v.besteller_notiz ? "📝 Notiz bearbeiten" : "📝 Notiz hinzufügen";
+      nb.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+      li.appendChild(nb);
+    }
     return li;
+  }
+  function editNotiz(id, current) {
+    var nn = window.prompt("Notiz für den Besteller (z. B. Liefertermin 25.07. oder verzögert bis KW 32):", current || "");
+    if (nn == null) return;
+    db.from("vormerkungen").update({ besteller_notiz: nn.trim() }).eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler beim Speichern der Notiz", true); return; }
+      refreshVormerkungen();
+    });
   }
   function renderVormerkungen() {
     vCount.textContent = "(" + vormCache.length + ")";
@@ -695,9 +712,13 @@
           '<div class="cg-sub"><span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || "") + "</span>" +
           (v.kommission ? "<span>Komm.: " + escapeHtml(v.kommission) + "</span>" : "") +
           "<span>" + escapeHtml(v.melder) + "</span></div>" +
-          (v.kommentar ? '<div class="cg-cmt">💬 ' + escapeHtml(v.kommentar) + "</div>" : "");
+          (v.kommentar ? '<div class="cg-cmt">💬 ' + escapeHtml(v.kommentar) + "</div>" : "") +
+          (v.besteller_notiz ? '<div class="v-notiz" style="margin-top:6px;">📝 ' + escapeHtml(v.besteller_notiz) + "</div>" : "");
         row.appendChild(info);
         var rowActs = document.createElement("div"); rowActs.className = "cg-item-acts";
+        var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝"; noteBtn.title = "Notiz";
+        noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+        rowActs.appendChild(noteBtn);
         var art = articleByNr(v.art_nr);
         if (art && art.produktLink) {
           var sh = document.createElement("button"); sh.className = "cg-mini"; sh.textContent = "🔗 Shop"; sh.title = "Produkt im Shop öffnen";
@@ -720,7 +741,7 @@
     doneCount.textContent = "(" + done.length + ")";
     doneList.innerHTML = "";
     if (!done.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts bestellt."; doneList.appendChild(e); return; }
-    done.forEach(function (v) { doneList.appendChild(buildVItem(v)); });
+    done.forEach(function (v) { doneList.appendChild(buildVItem(v, true)); });
   }
   function markBestellt(id) {
     db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", id).then(function (r) {
