@@ -4,121 +4,110 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
-<title>MV Bestell-Scanner — Phase 1: Artikel-Erkennung</title>
+<title>MV Bestell-Scanner — Phase 2a: Vormerken</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
-    --bg: #0f172a;
-    --card: #1e293b;
-    --card2: #334155;
-    --text: #f1f5f9;
-    --muted: #94a3b8;
-    --accent: #38bdf8;
-    --ok: #22c55e;
-    --warn: #f59e0b;
-    --err: #ef4444;
+    --bg: #0f172a; --card: #1e293b; --card2: #334155;
+    --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
+    --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
   }
-  html, body {
-    margin: 0; padding: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100%;
-  }
-  .wrap { max-width: 520px; margin: 0 auto; padding: 16px 16px 40px; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100%; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
   header h1 { font-size: 1.15rem; margin: 8px 0 2px; }
-  header p { margin: 0 0 14px; color: var(--muted); font-size: 0.85rem; }
+  header p { margin: 0 0 12px; color: var(--muted); font-size: 0.85rem; }
   header .count { color: var(--accent); font-weight: 600; }
 
-  #warning {
-    display: none;
-    background: #7c2d12; border: 1px solid var(--warn);
-    color: #fed7aa; padding: 12px 14px; border-radius: 12px;
-    font-size: 0.9rem; line-height: 1.4; margin-bottom: 14px;
-  }
+  h2.section { font-size: 0.8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 20px 2px 8px; }
+
+  #warning { display: none; background: #7c2d12; border: 1px solid var(--warn); color: #fed7aa;
+    padding: 12px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; margin-bottom: 14px; }
   #warning.show { display: block; }
   #warning code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 5px; }
 
-  .reader-wrap { position: relative; }
-  #reader {
-    width: 100%; border-radius: 16px; overflow: hidden;
-    background: #000; border: 1px solid var(--card2); min-height: 60px;
+  label.fl { display: block; font-size: 0.78rem; color: var(--muted); margin: 0 0 4px 2px; }
+  input[type=text], input[type=number], input[type=search], textarea {
+    width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--card2);
+    background: var(--card); color: var(--text); font-size: 1rem; font-family: inherit;
   }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  textarea { resize: vertical; min-height: 44px; }
+
+  .namebar { margin-bottom: 8px; }
+
+  .reader-wrap { position: relative; }
+  #reader { width: 100%; border-radius: 16px; overflow: hidden; background: #000; border: 1px solid var(--card2); min-height: 60px; }
   #reader video { width: 100% !important; display: block; border-radius: 16px; }
 
-  .controls { display: flex; gap: 10px; margin: 14px 0; }
-  button {
-    flex: 1; font-size: 1rem; font-weight: 600;
-    padding: 14px 12px; border-radius: 12px; border: none;
-    background: var(--accent); color: #0b1220; cursor: pointer;
-  }
+  .controls { display: flex; gap: 10px; margin: 10px 0; }
+  button { flex: 1; font-size: 1rem; font-weight: 600; padding: 14px 12px; border-radius: 12px; border: none;
+    background: var(--accent); color: #0b1220; cursor: pointer; }
   button.secondary { background: var(--card2); color: var(--text); }
+  button.ghost { background: transparent; border: 1px solid var(--card2); color: var(--muted); }
   button:disabled { opacity: .45; cursor: default; }
   button:active { transform: translateY(1px); }
 
-  /* Zoom-Regler: senkrecht, rechts über dem Kamerabild (wie native Kamera-App) */
-  #zoomWrap {
-    position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
-    display: none; flex-direction: column; align-items: center; gap: 10px;
-    padding: 14px 8px; z-index: 20;
-    background: rgba(15,23,42,.55); border-radius: 999px;
-    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-  }
+  #zoomWrap { position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 10px; padding: 14px 8px; z-index: 20;
+    background: rgba(15,23,42,.55); border-radius: 999px; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
   #zoomWrap .zoom-label { font-size: 1.05rem; line-height: 1; }
-  #zoomRange {
-    -webkit-appearance: slider-vertical; appearance: slider-vertical;
-    writing-mode: vertical-lr; direction: rtl;
-    width: 28px; height: 150px; margin: 0; accent-color: var(--accent);
-    touch-action: none;
-  }
+  #zoomRange { -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl;
+    width: 28px; height: 150px; margin: 0; accent-color: var(--accent); touch-action: none; }
 
-  /* Manuelle Eingabe (Testen ohne Barcode) */
-  .manual { display: flex; gap: 10px; margin: 0 0 14px; }
-  .manual input {
-    flex: 1; padding: 12px 14px; border-radius: 12px;
-    border: 1px solid var(--card2); background: var(--card); color: var(--text);
-    font-size: 1rem;
-  }
-  .manual input::placeholder { color: var(--muted); }
-  .manual button { flex: 0 0 auto; padding: 12px 18px; }
+  /* Suche */
+  #searchResults { list-style: none; margin: 8px 0 0; padding: 0; }
+  #searchResults li { background: var(--card); border: 1px solid var(--card2); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
+  #searchResults li:active { background: var(--card2); }
+  #searchResults .sr-name { font-weight: 600; font-size: 0.92rem; line-height: 1.25; }
+  #searchResults .sr-meta { color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
+  #searchResults .sr-empty { color: var(--muted); text-align: center; border-style: dashed; cursor: default; }
 
-  /* Ergebnis-Karte */
-  .result {
-    background: var(--card); border: 1px solid var(--card2);
-    border-radius: 16px; padding: 18px; margin-bottom: 14px;
-  }
-  .result.hit  { border-color: var(--ok);   background: #14311f; }
-  .result.miss { border-color: var(--warn); background: #3a2a12; }
-  .res-badge { font-size: 0.78rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); }
-  .result.hit  .res-badge { color: var(--ok); }
-  .result.miss .res-badge { color: var(--warn); }
-  .res-name { font-size: 1.1rem; font-weight: 700; line-height: 1.3; margin: 8px 0 6px; }
-  .res-grid .row { display: flex; gap: 8px; padding: 2px 0; font-size: 0.9rem; }
-  .res-grid .k { color: var(--muted); flex: 0 0 108px; }
-  .res-grid .v { font-weight: 600; word-break: break-word; }
-  .res-code {
-    margin-top: 10px; font-family: ui-monospace, Menlo, Consolas, monospace;
-    font-size: 0.78rem; color: var(--muted); word-break: break-all;
-  }
+  .divider { text-align: center; color: var(--muted); font-size: 0.75rem; margin: 12px 0; position: relative; }
 
-  .history-head { display: flex; align-items: center; justify-content: space-between; margin: 6px 2px; }
-  .history-head h2 { font-size: 0.95rem; margin: 0; color: var(--muted); }
-  .history-head button { flex: 0; padding: 6px 12px; font-size: 0.8rem; background: transparent; color: var(--muted); border: 1px solid var(--card2); }
-  #history { list-style: none; margin: 0; padding: 0; }
-  #history li {
-    background: var(--card); border: 1px solid var(--card2);
-    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
-    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
-  }
-  #history .h-code { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; word-break: break-all; }
-  #history .h-name { display: block; font-size: 0.76rem; margin-top: 2px; }
-  #history .h-name.ok { color: var(--ok); }
-  #history .h-name.miss { color: var(--warn); }
-  #history .h-meta { color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
-  #history .empty-note { color: var(--muted); text-align: center; border-style: dashed; justify-content: center; }
+  /* Ausgewählter Artikel + Formular */
+  #formPanel { display: none; background: var(--card); border: 1px solid var(--accent); border-radius: 16px; padding: 16px; margin-top: 10px; }
+  #formPanel.show { display: block; }
+  #formPanel.freitext { border-color: var(--warn); }
+  .fp-badge { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); }
+  #formPanel.freitext .fp-badge { color: var(--warn); }
+  .fp-name { font-size: 1.05rem; font-weight: 700; line-height: 1.3; margin: 6px 0; }
+  .fp-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; word-break: break-word; }
+  .field { margin-bottom: 12px; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
 
-  /* Test-Barcodes */
-  .testcodes { margin-bottom: 16px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; padding: 12px 6px; font-size: 0.9rem; background: var(--card2); color: var(--text); border: 1px solid transparent; }
+  .seg button[data-active="1"][data-level="normal"]  { background: #1f3a5f; border-color: var(--accent); color: var(--text); }
+  .seg button[data-active="1"][data-level="dringend"] { background: #4a3610; border-color: var(--warn); color: #fde68a; }
+  .seg button[data-active="1"][data-level="sofort"]   { background: #4a1616; border-color: var(--err); color: #fecaca; }
+
+  .fp-actions { display: flex; gap: 10px; margin-top: 6px; }
+  .fp-actions .save { background: var(--ok); color: #052e16; }
+
+  /* Vormerkungen-Liste */
+  .list-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 2px 8px; }
+  .list-head h2 { font-size: 0.95rem; margin: 0; }
+  .list-head .lh-count { color: var(--accent); }
+  .list-head button { flex: 0; padding: 6px 12px; font-size: 0.8rem; }
+  #vlist { list-style: none; margin: 0; padding: 0; }
+  #vlist li { background: var(--card); border: 1px solid var(--card2); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  #vlist .v-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  #vlist .v-name { font-weight: 600; line-height: 1.3; }
+  #vlist .v-del { flex: 0 0 auto; background: transparent; border: none; color: var(--muted); font-size: 1.2rem; padding: 0 4px; cursor: pointer; width: auto; }
+  #vlist .v-meta { color: var(--muted); font-size: 0.76rem; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  #vlist .v-comment { font-size: 0.82rem; margin-top: 6px; color: var(--text); }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+  .badge.menge { background: var(--card2); color: var(--text); }
+  .badge.normal { background: #1f3a5f; color: #bfdbfe; }
+  .badge.dringend { background: #4a3610; color: #fde68a; }
+  .badge.sofort { background: #4a1616; color: #fecaca; }
+  .badge.freitext { background: #3a2a12; color: var(--warn); border: 1px solid var(--warn); }
+  #vlist .v-empty { color: var(--muted); text-align: center; border-style: dashed; }
+
+  .testcodes { margin-top: 18px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
   .testcodes summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
   .tc-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.45; margin: 4px 0 8px; }
   #barcodes { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 0 12px; }
@@ -128,103 +117,133 @@
 
   button.go { background: var(--ok); color: #052e16; }
 
-  #successFlash {
-    position: fixed; inset: 0; z-index: 50;
-    display: none; align-items: center; justify-content: center;
-    background: rgba(34,197,94,.22); pointer-events: none;
-  }
+  #successFlash { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+    background: rgba(34,197,94,.22); pointer-events: none; }
   #successFlash.show { display: flex; animation: flashFade .85s ease-out forwards; }
-  #successFlash .check {
-    width: 128px; height: 128px; border-radius: 50%;
-    background: var(--ok); color: #052e16;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 74px; font-weight: 700;
-    box-shadow: 0 0 0 14px rgba(34,197,94,.22);
-  }
-  @keyframes flashFade {
-    0%   { opacity: 0; }
-    12%  { opacity: 1; }
-    70%  { opacity: 1; }
-    100% { opacity: 0; }
-  }
+  #successFlash .check { width: 128px; height: 128px; border-radius: 50%; background: var(--ok); color: #052e16;
+    display: flex; align-items: center; justify-content: center; font-size: 74px; font-weight: 700; box-shadow: 0 0 0 14px rgba(34,197,94,.22); }
+  @keyframes flashFade { 0%{opacity:0} 12%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
 
-  .status { font-size: 0.8rem; color: var(--muted); text-align: center; min-height: 1.1rem; margin-top: 6px; }
+  .status { font-size: 0.8rem; color: var(--muted); text-align: center; min-height: 1.1rem; margin-top: 8px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: var(--ok); color: #052e16; font-weight: 600; padding: 12px 20px; border-radius: 999px; z-index: 60;
+    transition: opacity .2s, transform .2s; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   footer { margin-top: 24px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
   footer b { color: var(--text); }
 </style>
 </head>
 <body>
 <div id="successFlash"><div class="check">✓</div></div>
+<div id="toast" class="toast"></div>
 <div class="wrap">
   <header>
     <h1>📷 MV Bestell-Scanner</h1>
-    <p>Phase 1 — Artikel-Erkennung. Gescannte/eingegebene Codes werden gegen
-       <span class="count" id="artCount">0</span> Test-Artikel geprüft.</p>
+    <p>Phase 2a — Vormerken (lokal). <span class="count" id="artCount">0</span> Test-Artikel.</p>
   </header>
 
   <div id="warning">
     <b>Kamera nicht verfügbar.</b> Die Kamera funktioniert im Browser nur über eine
-    <b>HTTPS-Adresse</b> (oder <code>localhost</code>). Öffne die Seite über deinen
-    GitHub-Pages-Link, nicht als lokale Datei. Die Artikel-Erkennung per Eingabefeld
-    unten funktioniert auch ohne Kamera.
+    <b>HTTPS-Adresse</b> (oder <code>localhost</code>). Öffne die Seite über deinen GitHub-Pages-Link.
+    Suche und Vormerken funktionieren auch ohne Kamera.
   </div>
+
+  <div class="namebar">
+    <label class="fl" for="melderInput">Dein Name (wird gemerkt)</label>
+    <input id="melderInput" type="text" autocomplete="off" placeholder="z. B. Max Mustermann">
+  </div>
+
+  <h2 class="section">1 · Artikel wählen</h2>
 
   <div class="reader-wrap">
     <div id="reader"></div>
     <div id="zoomWrap">
       <span class="zoom-label">🔍</span>
-      <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1"
-             aria-label="Zoom" orient="vertical">
+      <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1" aria-label="Zoom" orient="vertical">
     </div>
   </div>
 
   <div class="controls">
-    <button id="startBtn">Scan starten</button>
+    <button id="startBtn">📷 Scan starten</button>
     <button id="switchBtn" class="secondary" disabled>Kamera wechseln</button>
   </div>
 
-  <div class="manual">
-    <input id="manualInput" type="text" autocomplete="off" autocapitalize="off"
-           placeholder="Artikelnummer eingeben (ohne Barcode testen)…">
-    <button id="manualBtn" class="secondary">Prüfen</button>
+  <div class="divider">— oder ohne Scannen: suchen —</div>
+
+  <div>
+    <input id="searchInput" type="search" autocomplete="off" autocapitalize="off"
+           placeholder="Artikel suchen: Name oder Nummer eingeben…">
+    <ul id="searchResults"></ul>
   </div>
 
-  <div class="result" id="resultCard">
-    <div class="res-badge" id="resBadge">— noch nichts geprüft —</div>
-    <div class="res-name" id="resName"></div>
-    <div class="res-grid" id="resDetails"></div>
-    <div class="res-code" id="resCode"></div>
+  <button id="freitextBtn" class="ghost" style="margin-top:10px;">✏️ Artikel nicht dabei? Freien Wunsch eintragen</button>
+
+  <!-- Ausgewählter Artikel + Vormerk-Formular -->
+  <div id="formPanel">
+    <div class="fp-badge" id="fpBadge">Ausgewählter Artikel</div>
+    <div class="fp-name" id="fpName"></div>
+    <div class="fp-sub" id="fpSub"></div>
+
+    <div class="field" id="freitextField" style="display:none;">
+      <label class="fl" for="freitextName">Was soll bestellt werden?</label>
+      <input id="freitextName" type="text" placeholder="Bezeichnung des gewünschten Artikels">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label class="fl" for="mengeInput">Menge</label>
+        <input id="mengeInput" type="number" inputmode="numeric" min="1" step="1" value="1">
+      </div>
+      <div class="field" style="flex:2;">
+        <label class="fl">Dringlichkeit</label>
+        <div class="seg" id="dringSeg">
+          <button type="button" data-level="normal" data-active="1">Normal</button>
+          <button type="button" data-level="dringend" data-active="0">Dringend</button>
+          <button type="button" data-level="sofort" data-active="0">Sofort</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="fl" for="kommissionInput">Kommission (optional)</label>
+      <input id="kommissionInput" type="text" placeholder="z. B. Fahrzeug / Auftrag / Kunde">
+    </div>
+    <div class="field">
+      <label class="fl" for="kommentarInput">Kommentar (optional)</label>
+      <textarea id="kommentarInput" rows="2" placeholder="z. B. Farbe, Variante, Hinweis"></textarea>
+    </div>
+
+    <div class="fp-actions">
+      <button class="ghost" id="cancelBtn">Abbrechen</button>
+      <button class="save" id="saveBtn">Vormerken</button>
+    </div>
   </div>
 
   <div class="status" id="status"></div>
 
+  <!-- Liste -->
+  <div class="list-head">
+    <h2>Vorgemerkte Bestellungen <span class="lh-count" id="vCount">(0)</span></h2>
+    <button class="ghost" id="clearBtn">Alle löschen</button>
+  </div>
+  <ul id="vlist"></ul>
+
   <details class="testcodes">
     <summary>🧪 Test-Barcodes zum Abscannen</summary>
-    <p class="tc-hint">Diese Codes stammen aus echten Artikeln deines Stamms. Scanne sie mit dem
-      Handy direkt vom Bildschirm, um den ganzen Ablauf (Scan → Erkennung) zu testen — praktisch,
-      solange du keine gedruckten Etiketten zur Hand hast. Der letzte Code ist absichtlich
-      <b>nicht</b> im Stamm, damit du auch die „Unbekannt"-Meldung siehst.</p>
+    <p class="tc-hint">Echte Artikelnummern aus deinem Stamm als Code 128 — zum Testen vom Bildschirm abscannen.
+      Der letzte ist absichtlich nicht im Stamm.</p>
     <div id="barcodes"></div>
   </details>
 
-  <div class="history-head">
-    <h2>Verlauf</h2>
-    <button id="clearBtn">Leeren</button>
-  </div>
-  <ul id="history"></ul>
-
   <footer>
-    <b>So testest du Phase 1:</b>
-    <br>1. <b>Ohne Barcode:</b> Tippe oben eine Artikelnummer ein (z.&nbsp;B. <code>100742</code> oder
-    <code>GES1758509</code>) → „Prüfen". Die App sollte den Artikel erkennen.
-    <br>2. <b>Mit Kamera:</b> Öffne „Test-Barcodes zum Abscannen", starte den Scan und halte das
-    Handy auf einen der Codes am Bildschirm.
-    <br>3. Probiere einen <b>unbekannten</b> Code (z.&nbsp;B. <code>99999999</code>) → es muss
-    „Unbekannter Code" erscheinen.
-    <br><br>
-    <b>Hinweis:</b> Die EAN auf einer Herstellerverpackung wird i.&nbsp;d.&nbsp;R. <b>nicht</b>
-    gefunden — im Artikelstamm gibt es (noch) keine EAN-Spalte. Der zuverlässige Weg ist später
-    das eigene MV-Etikett.
+    <b>So testest du Phase 2a:</b>
+    <br>1. Namen oben eintragen.
+    <br>2. Artikel wählen — per <b>Scan</b> (Test-Barcodes unten), per <b>Suche</b> (z. B. „Rakel" oder „Garmin")
+    oder als <b>freien Wunsch</b>.
+    <br>3. Menge + Dringlichkeit setzen → <b>Vormerken</b>. Der Eintrag erscheint in der Liste.
+    <br>4. Seite neu laden — die Liste bleibt erhalten (lokal gespeichert).
+    <br><br><b>Hinweis:</b> In dieser Stufe liegt die Liste nur <b>auf diesem Gerät</b>. In Phase 2b wird
+    sie in die Cloud verlegt und ist dann für alle Kollegen gemeinsam sichtbar.
   </footer>
 </div>
 
@@ -234,22 +253,18 @@
 (function () {
   "use strict";
 
-  // ===== Testdaten: echter Ausschnitt aus dem Artikelstamm (34 Artikel) =====
   var ARTICLES = [{"warengruppe":"Werkzeug","bezeichnung":"3M Rakel gold - 7 x 10 cm","artNrLieferant":"100742","artNrHersteller":"-","hersteller":"3M","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"5.89","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"NT-Cutter BD100 Klingen - 30° Breite: 9 mm","artNrLieferant":"101655","artNrHersteller":"-","hersteller":"NT-Cutter","lieferant":"4GM GmbH/Folienwelt.de","vpe":"5","ek":"0.33","lagerort":"Folien"},{"warengruppe":"Werkzeug","bezeichnung":"Orafol Rakel Squeegee grey plastic - 7 x 10 cm","artNrLieferant":"100744","artNrHersteller":"-","hersteller":"Orafol","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"1.09","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"10 Pcs 4mm Shank Single Flute Spiral End Mill Cutter Router Bits 22m","artNrLieferant":"","artNrHersteller":"-","hersteller":"","lieferant":"Ali express","vpe":"10","ek":"1.469","lagerort":"Tischlerei"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"Einschneidenfräser Ø 4mm, SL 22 mm","artNrLieferant":"","artNrHersteller":"","hersteller":"","lieferant":"Ali Express","vpe":"Stk.","ek":"1.51","lagerort":"Tischlerei"},{"warengruppe":"Anbauteile aussen","bezeichnung":"KERL 500 black (Zurröse für Airline)","artNrLieferant":"310285-0040","artNrHersteller":"","hersteller":"","lieferant":"allsafe GmbH & Co. KG","vpe":"40","ek":"4.625","lagerort":"Wst Wagen"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER. Protección frontal SPRINTER XW907 VS30 4MATIC","artNrLieferant":"PDMBS3A28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"540","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección caja cambio/transfer SPRINTER W907 VS30 4MATIC","artNrLieferant":"PDMBS3B28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"322.5","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección depósito SPRINTER 4x4 W906-W907 VS30 4Matic","artNrLieferant":"PDMBS23D6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"315","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección diferen. SPRINTER 4X4,2.2,3.0,2.04MATIC (NOT 5.5)","artNrLieferant":"PDMBS23DIF6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"180","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"Trittstufe elektrisch, Serie ETB, Transit v363","artNrLieferant":"101991","artNrHersteller":"","hersteller":"","lieferant":"alphadynamik","vpe":"1","ek":"982.1","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile aussen","bezeichnung":"ETB 0900 Sprinter 906/907","artNrLieferant":"102398","artNrHersteller":"-","hersteller":"","lieferant":"AlphaDynamik GmbH & Co. KG ","vpe":"1","ek":"816.2","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile innen","bezeichnung":"Aluminium Nutprofil 3030 Schwarz","artNrLieferant":"3030-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"lfm","ek":"12.23","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Aluminium Schwarz","artNrLieferant":"3030L-ALU BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.99","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Linsenkopfschrauben ISO 7380 M6x12 schwarz","artNrLieferant":"ISO 7380-M6X12 BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.1","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M8","artNrLieferant":"8-4-M8.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M6","artNrLieferant":"8-4-M6.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Schwarz","artNrLieferant":"3030L-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.52","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkelabdeckkappe 3030L","artNrLieferant":"3030L-COVER","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.17","lagerort":"Schweißerei"},{"warengruppe":"Sanitär Geräte","bezeichnung":"12 V – 2 Arten von Verbindungen – motorisiertes Ventil 12 V Elektromagnetventil, normalerweise geschlossen, 2-Wege-Ventil, motorisiert, 1/2 3/4 1 1-1/4 1-1/2 2 Zoll (3/4 Zoll DN20)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"28.478","lagerort":"Sanitär"},{"warengruppe":"Sanitär Geräte","bezeichnung":"2 Modi - 2 wege motorkugelhahn 12v zonenventil 2 wege ventil elektrisch 1/2 3/4 1 1-1/4 1-1/2 2 zoll (1 zoll DN25)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"33.76","lagerort":"Sanitär"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"2 Stück Kabelverschraubung für Anderson Stecker, 120A Hochstrom Schneller Kabelstecker, Zertifiziert Batterieanschluss Stecker, Schnellanschluss für Auto, Wohnwagen, Wohnmobil, Boot (grau)","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.09","lagerort":"Elektrolager"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"2 Stück Schwerlast Kugellagerscharniere 10cm, Bolatus Türscharnier Schwarz Edelstahl Scharniere Scharnier mit 8 Löchern für Massive Türen Gartentor Innen Außen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.62","lagerort":"Tischlerei"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"20 Rundknöpfe inkl. Schrauben - Planenknöpfe - perfekt zum Befestigen von Anhängernetzen und Planen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"20","ek":"0.54","lagerort":"Tischlerei"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"AUPROTEC KFZ Kabel 2x4,0 mm² 50m flach FLRYY I Flachkabel Schlauchleitung/Fahrzeugleitung Verschiedene Anwendungen I 2 poliges Kabel für Anhänger geeignet","artNrLieferant":"-","artNrHersteller":"57993478386682","hersteller":"","lieferant":"Amazon","vpe":"m","ek":"2.305","lagerort":"Elektrolager"},{"warengruppe":"Sanitär installationsmaterial","bezeichnung":"VIOKS Panzerschlauch 1/2 Zoll (19,3mm) ÜM x M10 30 cm & Wasserschlauch Flexibel Trinkwasserschlauch Flexschlauch fuer WC Spülkasten Waschbecken Küchenarmatur Bad & Wasserhahn Anschlussschlauch","artNrLieferant":"-","artNrHersteller":"B07RZS283R","hersteller":"","lieferant":"Amazon","vpe":"","ek":"7.98","lagerort":"Sanitär"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"Hülsenmuttern für Bullauge mit Senkkopf und Innensechskant (ISK) - Antrieb - M4x12 - (10 Stück) - aus rostfreiem Edelstahl A1 (VA) - NIRO - SC9062 | SC-Normteile®","artNrLieferant":"-","artNrHersteller":"FBA-9062-1-040-012-10","hersteller":"SC Normteile","lieferant":"amazon","vpe":"1","ek":"1.289","lagerort":"Tischlerei"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"GESIPA G-Sealed Blindnietmutter Stahl - Flachrundkopf","artNrLieferant":"GES1758509","artNrHersteller":"1758509","hersteller":"","lieferant":"Bauportal24","vpe":"100","ek":"0.32","lagerort":"WST Wagen"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob Verschlussstopfen 50 St.","artNrLieferant":"4024092137600","artNrHersteller":"WJ-DM 20-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.17","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob WJ-DM 16-VPA/SW Verschlussstopfen 50 St.","artNrLieferant":"4024092156311","artNrHersteller":"WJ-DM 16-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.15","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Icotek KEL-DPZ 40/8 Kabeldurchführungsplatte Klemm-Ø (max.) 10.2 mm Polyamid, Elastomer Grau 1 St.","artNrLieferant":"418836 - 62","artNrHersteller":"43741","hersteller":"","lieferant":"Conrad","vpe":"1","ek":"19.32","lagerort":"Elektrolager"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin DashCam Tandem","artNrLieferant":"119196","artNrHersteller":"010-02259-01","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"261","lagerort":"Palettenregal"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Garmin Parking Mode Kabel","artNrLieferant":"108171","artNrHersteller":"010-12530-03","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"22","lagerort":"Palettenregal"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin Tread XL Overland Edition","artNrLieferant":"140206","artNrHersteller":"010-02509-10","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"1105","lagerort":"Palettenregal"}];
 
-  // ===== Artikel-Index (Normalisierung + Nachschlagen) =====
+  // ===== Index / Normalisierung =====
   function norm(s) { return (s == null ? "" : String(s)).trim().toUpperCase().replace(/\s+/g, " "); }
   function normLoose(s) { return norm(s).replace(/\s+/g, ""); }
-
-  var idx = Object.create(null); // kein Prototyp → keine Kollision mit "constructor" o.ä.
+  var idx = Object.create(null);
   function addToIndex(code, article, field) {
     if (code == null) return;
     var c = String(code).trim();
-    if (c === "" || c === "-") return; // "-" ist keine echte Nummer
-    var n = norm(c);
-    if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
-    var nl = normLoose(c);
-    if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
+    if (c === "" || c === "-") return;
+    var n = norm(c); if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
+    var nl = normLoose(c); if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
   }
   function buildIndex() {
     ARTICLES.forEach(function (a) {
@@ -258,242 +273,300 @@
     });
   }
   function lookup(code) {
-    var n = norm(code);
-    if (idx[n]) return idx[n];
-    var nl = normLoose(code);
-    return idx[nl] || null;
+    var n = norm(code); if (idx[n]) return idx[n];
+    var nl = normLoose(code); return idx[nl] || null;
   }
-
+  function primaryNr(a) {
+    var l = (a.artNrLieferant || "").trim();
+    if (l && l !== "-") return l;
+    var h = (a.artNrHersteller || "").trim();
+    if (h && h !== "-") return h;
+    return "";
+  }
   function escapeHtml(s) {
     return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
     });
   }
 
+  // ===== Suche =====
+  function searchArticles(q) {
+    q = (q || "").trim();
+    if (!q) return [];
+    var ql = q.toLowerCase();
+    var qLoose = normLoose(q);
+    var scored = [];
+    for (var i = 0; i < ARTICLES.length; i++) {
+      var a = ARTICLES[i];
+      var score = 0;
+      var bez = (a.bezeichnung || "").toLowerCase();
+      var nrL = normLoose(a.artNrLieferant), nrH = normLoose(a.artNrHersteller);
+      if (qLoose && (nrL === qLoose || nrH === qLoose)) score = 100;
+      else if (qLoose.length >= 3 && (nrL.indexOf(qLoose) >= 0 || nrH.indexOf(qLoose) >= 0)) score = 60;
+      else if (bez.indexOf(ql) >= 0) score = 40;
+      if (score > 0) scored.push({ a: a, score: score });
+    }
+    scored.sort(function (x, y) { return y.score - x.score; });
+    return scored.slice(0, 8).map(function (s) { return s.a; });
+  }
+
   // ===== DOM =====
   var FMT = Html5QrcodeSupportedFormats;
-  var formats = [
-    FMT.EAN_13, FMT.EAN_8, FMT.UPC_A, FMT.UPC_E,
-    FMT.CODE_128, FMT.CODE_39, FMT.CODE_93, FMT.ITF, FMT.CODABAR,
-    FMT.QR_CODE, FMT.DATA_MATRIX
-  ];
-  var FORMAT_NAMES = {};
-  Object.keys(FMT).forEach(function (k) { if (typeof FMT[k] === "number") FORMAT_NAMES[FMT[k]] = k; });
+  var formats = [FMT.EAN_13, FMT.EAN_8, FMT.UPC_A, FMT.UPC_E, FMT.CODE_128, FMT.CODE_39, FMT.CODE_93, FMT.ITF, FMT.CODABAR, FMT.QR_CODE, FMT.DATA_MATRIX];
 
-  var startBtn = document.getElementById("startBtn");
-  var switchBtn = document.getElementById("switchBtn");
-  var clearBtn = document.getElementById("clearBtn");
-  var statusEl = document.getElementById("status");
-  var historyEl = document.getElementById("history");
-  var warningEl = document.getElementById("warning");
-  var successFlash = document.getElementById("successFlash");
-  var resultCard = document.getElementById("resultCard");
-  var resBadge = document.getElementById("resBadge");
-  var resName = document.getElementById("resName");
-  var resDetails = document.getElementById("resDetails");
-  var resCode = document.getElementById("resCode");
-  var zoomWrap = document.getElementById("zoomWrap");
-  var zoomRange = document.getElementById("zoomRange");
-  var manualInput = document.getElementById("manualInput");
-  var manualBtn = document.getElementById("manualBtn");
-  var barcodesEl = document.getElementById("barcodes");
-  var artCountEl = document.getElementById("artCount");
+  var $ = function (id) { return document.getElementById(id); };
+  var startBtn = $("startBtn"), switchBtn = $("switchBtn"), clearBtn = $("clearBtn");
+  var statusEl = $("status"), warningEl = $("warning"), successFlash = $("successFlash"), toastEl = $("toast");
+  var zoomWrap = $("zoomWrap"), zoomRange = $("zoomRange");
+  var melderInput = $("melderInput"), searchInput = $("searchInput"), searchResults = $("searchResults");
+  var freitextBtn = $("freitextBtn");
+  var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub");
+  var freitextField = $("freitextField"), freitextName = $("freitextName");
+  var mengeInput = $("mengeInput"), dringSeg = $("dringSeg"), kommissionInput = $("kommissionInput"), kommentarInput = $("kommentarInput");
+  var cancelBtn = $("cancelBtn"), saveBtn = $("saveBtn");
+  var vlist = $("vlist"), vCount = $("vCount"), barcodesEl = $("barcodes"), artCountEl = $("artCount");
 
-  var scanner = null;
-  var running = false;
-  var stopping = false;
-  var cameras = [];
-  var camIndex = 0;
-  var lastValue = "";
-  var lastAt = 0;
-  var audioCtx = null;
+  var scanner = null, running = false, stopping = false, cameras = [], camIndex = 0, lastValue = "", lastAt = 0, audioCtx = null;
+  var currentArticle = null;      // ausgewählter Artikel (oder null)
+  var currentFreitext = false;
+  var dringlichkeit = "normal";
 
-  function setStatus(msg) { statusEl.textContent = msg || ""; }
+  var LS_MELDER = "mv_melder", LS_VORM = "mv_vormerkungen_v1";
 
-  function isSecure() {
-    return window.isSecureContext === true ||
-           location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  }
-
+  function setStatus(m) { statusEl.textContent = m || ""; }
+  function isSecure() { return window.isSecureContext === true || location.hostname === "localhost" || location.hostname === "127.0.0.1"; }
   function pad(n) { return n < 10 ? "0" + n : "" + n; }
-  function nowTime() {
-    var d = new Date();
-    return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
-  }
+  function nowTime() { var d = new Date(); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function nowDateTime() { var d = new Date(); return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ". " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
 
   function beep() {
     try {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      var o = audioCtx.createOscillator();
-      var g = audioCtx.createGain();
-      o.type = "square"; o.frequency.value = 880;
-      g.gain.value = 0.05;
-      o.connect(g); g.connect(audioCtx.destination);
-      o.start();
-      o.stop(audioCtx.currentTime + 0.12);
-    } catch (e) { /* egal */ }
+      var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "square"; o.frequency.value = 880; g.gain.value = 0.05;
+      o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.12);
+    } catch (e) {}
   }
-
-  function qrboxFn(vw, vh) {
-    var w = Math.floor(Math.min(vw, 420) * 0.85);
-    var h = Math.floor(Math.min(vh * 0.6, w * 0.55));
-    return { width: w, height: h };
-  }
-
   function flashSuccess() {
-    successFlash.classList.remove("show");
-    void successFlash.offsetWidth;
-    successFlash.classList.add("show");
+    successFlash.classList.remove("show"); void successFlash.offsetWidth; successFlash.classList.add("show");
     setTimeout(function () { successFlash.classList.remove("show"); }, 900);
   }
-
-  // ===== Erkennung anzeigen =====
-  function detailRow(k, v) {
-    if (v == null || v === "" || v === "-") return "";
-    return '<div class="row"><span class="k">' + k + '</span><span class="v">' + escapeHtml(v) + "</span></div>";
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg; toastEl.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2000);
   }
 
-  function showResult(code, fmtName, hit) {
-    if (hit) {
-      var a = hit.article;
-      resultCard.className = "result hit";
-      resBadge.textContent = "✓ Erkannt";
-      resName.textContent = a.bezeichnung;
-      resDetails.innerHTML =
-        detailRow("Lieferant", a.lieferant) +
-        detailRow("Hersteller", a.hersteller) +
-        detailRow("Warengruppe", a.warengruppe) +
-        detailRow("Lagerort", a.lagerort) +
-        detailRow("EK (exkl.)", a.ek ? a.ek + " €" : "") +
-        detailRow("VPE", a.vpe);
-      resCode.textContent = "Code: " + code + (fmtName ? " · " + fmtName : "") +
-        " · Treffer über " + hit.matchField + " (" + hit.matchValue + ")";
-    } else {
-      resultCard.className = "result miss";
-      resBadge.textContent = "✗ Unbekannter Code";
-      resName.textContent = "";
-      resDetails.innerHTML =
-        '<div class="row"><span class="v" style="font-weight:500;color:var(--muted)">' +
-        "Nicht im Artikelstamm gefunden. Später kann dieser Code als neue Position für den Besteller notiert werden." +
-        "</span></div>";
-      resCode.textContent = "Code: " + code + (fmtName ? " · " + fmtName : "");
+  // ===== Artikel auswählen / Formular =====
+  function selectArticle(article) {
+    currentArticle = article; currentFreitext = false;
+    formPanel.classList.remove("freitext");
+    freitextField.style.display = "none";
+    fpBadge.textContent = "✓ Ausgewählter Artikel";
+    fpName.textContent = article.bezeichnung;
+    var bits = [];
+    if (article.lieferant) bits.push("Lieferant: " + article.lieferant);
+    var nr = primaryNr(article); if (nr) bits.push("Nr: " + nr);
+    if (article.lagerort) bits.push("Lager: " + article.lagerort);
+    fpSub.textContent = bits.join("  ·  ");
+    openForm();
+  }
+  function selectFreitext(prefill) {
+    currentArticle = null; currentFreitext = true;
+    formPanel.classList.add("freitext");
+    fpBadge.textContent = "✏️ Freier Wunsch (nicht im Stamm)";
+    fpName.textContent = "";
+    fpSub.textContent = "Artikel ist nicht im Stamm — bitte kurz beschreiben.";
+    freitextField.style.display = "block";
+    freitextName.value = prefill || "";
+    openForm();
+    setTimeout(function () { freitextName.focus(); }, 50);
+  }
+  function openForm() {
+    // Formular zurücksetzen (außer Freitext-Prefill)
+    mengeInput.value = "1";
+    setDringlichkeit("normal");
+    kommissionInput.value = "";
+    kommentarInput.value = "";
+    formPanel.classList.add("show");
+    searchResults.innerHTML = "";
+    searchInput.value = "";
+    formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function closeForm() {
+    formPanel.classList.remove("show");
+    currentArticle = null; currentFreitext = false;
+    setStatus("");
+  }
+  function setDringlichkeit(level) {
+    dringlichkeit = level;
+    var btns = dringSeg.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute("data-active", btns[i].getAttribute("data-level") === level ? "1" : "0");
     }
   }
 
-  function addHistory(code, fmtName, hit) {
-    var placeholder = historyEl.querySelector(".empty-note");
-    if (placeholder) historyEl.removeChild(placeholder);
+  function saveVormerkung() {
+    var melder = melderInput.value.trim();
+    if (!melder) { toast("Bitte oben deinen Namen eintragen"); melderInput.focus(); return; }
 
-    var li = document.createElement("li");
-    var left = document.createElement("div");
-    var codeEl = document.createElement("span");
-    codeEl.className = "h-code"; codeEl.textContent = code;
-    var nameEl = document.createElement("span");
-    nameEl.className = "h-name " + (hit ? "ok" : "miss");
-    nameEl.textContent = hit ? hit.article.bezeichnung : "nicht im Stamm";
-    left.appendChild(codeEl); left.appendChild(nameEl);
-    var meta = document.createElement("span");
-    meta.className = "h-meta"; meta.textContent = nowTime() + (fmtName ? " · " + fmtName : "");
-    li.appendChild(left); li.appendChild(meta);
+    var bezeichnung, lieferant = "", warengruppe = "", artNr = "", isFrei = false;
+    if (currentFreitext) {
+      bezeichnung = freitextName.value.trim();
+      if (!bezeichnung) { toast("Bitte beschreiben, was bestellt werden soll"); freitextName.focus(); return; }
+      isFrei = true;
+    } else if (currentArticle) {
+      bezeichnung = currentArticle.bezeichnung;
+      lieferant = currentArticle.lieferant || "";
+      warengruppe = currentArticle.warengruppe || "";
+      artNr = primaryNr(currentArticle);
+    } else { return; }
 
-    historyEl.insertBefore(li, historyEl.firstChild);
-    while (historyEl.children.length > 25) historyEl.removeChild(historyEl.lastChild);
+    var menge = parseInt(mengeInput.value, 10);
+    if (!menge || menge < 1) menge = 1;
+
+    var entry = {
+      id: Date.now() + "_" + Math.floor(Math.random() * 1e6),
+      ts: nowDateTime(),
+      melder: melder, bezeichnung: bezeichnung, lieferant: lieferant, warengruppe: warengruppe,
+      artNr: artNr, isFreitext: isFrei, menge: menge, dringlichkeit: dringlichkeit,
+      kommission: kommissionInput.value.trim(), kommentar: kommentarInput.value.trim()
+    };
+    var list = loadVormerkungen();
+    list.unshift(entry);
+    saveVormerkungen(list);
+    renderVormerkungen();
+    closeForm();
+    beep();
+    toast("Vorgemerkt: " + (menge) + "× " + shorten(bezeichnung, 30));
   }
 
-  function handleCode(rawCode, fmtName, source) {
-    var code = (rawCode == null ? "" : String(rawCode)).trim();
-    if (!code) return null;
-    var hit = lookup(code);
-    showResult(code, fmtName, hit);
-    addHistory(code, fmtName, hit);
-    return hit;
+  function shorten(s, n) { s = s || ""; return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+  // ===== Persistenz (lokal) =====
+  function loadVormerkungen() {
+    try { return JSON.parse(localStorage.getItem(LS_VORM) || "[]"); } catch (e) { return []; }
+  }
+  function saveVormerkungen(list) {
+    try { localStorage.setItem(LS_VORM, JSON.stringify(list)); } catch (e) {}
+  }
+  var DRING_LABEL = { normal: "Normal", dringend: "Dringend", sofort: "Sofort" };
+  function renderVormerkungen() {
+    var list = loadVormerkungen();
+    vCount.textContent = "(" + list.length + ")";
+    vlist.innerHTML = "";
+    if (!list.length) {
+      var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts vorgemerkt.";
+      vlist.appendChild(e); return;
+    }
+    list.forEach(function (v) {
+      var li = document.createElement("li");
+      var top = document.createElement("div"); top.className = "v-top";
+      var name = document.createElement("div"); name.className = "v-name"; name.textContent = v.bezeichnung;
+      var del = document.createElement("button"); del.className = "v-del"; del.innerHTML = "✕"; del.title = "Löschen";
+      del.addEventListener("click", function () { deleteVormerkung(v.id); });
+      top.appendChild(name); top.appendChild(del);
+      li.appendChild(top);
+
+      var meta = document.createElement("div"); meta.className = "v-meta";
+      meta.innerHTML =
+        '<span class="badge menge">' + v.menge + "×</span>" +
+        '<span class="badge ' + v.dringlichkeit + '">' + (DRING_LABEL[v.dringlichkeit] || v.dringlichkeit) + "</span>" +
+        (v.isFreitext ? '<span class="badge freitext">Freitext</span>' : "") +
+        "<span>" + escapeHtml(v.lieferant || (v.isFreitext ? "—" : "")) + "</span>" +
+        (v.kommission ? "<span>Komm.: " + escapeHtml(v.kommission) + "</span>" : "") +
+        "<span>" + escapeHtml(v.melder) + " · " + escapeHtml(v.ts) + "</span>";
+      li.appendChild(meta);
+
+      if (v.kommentar) {
+        var c = document.createElement("div"); c.className = "v-comment"; c.textContent = "💬 " + v.kommentar;
+        li.appendChild(c);
+      }
+      vlist.appendChild(li);
+    });
+  }
+  function deleteVormerkung(id) {
+    var list = loadVormerkungen().filter(function (v) { return v.id !== id; });
+    saveVormerkungen(list); renderVormerkungen();
+  }
+  function clearAll() {
+    if (!loadVormerkungen().length) return;
+    if (!window.confirm("Wirklich alle Vormerkungen löschen?")) return;
+    saveVormerkungen([]); renderVormerkungen();
   }
 
-  // ===== Kamera =====
-  function finishScan() {
-    if (!scanner || !running || stopping) return;
-    stopping = true;
-    zoomWrap.style.display = "none";
-    scanner.stop().then(function () {
-      running = false; stopping = false;
-      startBtn.textContent = "Nächsten Artikel scannen";
-      startBtn.classList.add("go");
-      startBtn.disabled = false;
-      switchBtn.disabled = true;
-    }).catch(function () {
-      running = false; stopping = false;
-      startBtn.textContent = "Nächsten Artikel scannen";
-      startBtn.classList.add("go");
-      startBtn.disabled = false;
+  // ===== Suche UI =====
+  function renderSearch() {
+    var q = searchInput.value;
+    if (!q.trim()) { searchResults.innerHTML = ""; return; }
+    var hits = searchArticles(q);
+    searchResults.innerHTML = "";
+    if (!hits.length) {
+      var e = document.createElement("li"); e.className = "sr-empty";
+      e.textContent = "Kein Treffer — als freien Wunsch eintragen?";
+      e.addEventListener("click", function () { selectFreitext(q.trim()); });
+      searchResults.appendChild(e); return;
+    }
+    hits.forEach(function (a) {
+      var li = document.createElement("li");
+      var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
+      var mt = document.createElement("div"); mt.className = "sr-meta";
+      var nr = primaryNr(a);
+      mt.textContent = (a.lieferant || "") + (nr ? "  ·  " + nr : "");
+      li.appendChild(nm); li.appendChild(mt);
+      li.addEventListener("click", function () { selectArticle(a); });
+      searchResults.appendChild(li);
     });
   }
 
+  // ===== Kamera =====
+  function qrboxFn(vw, vh) { var w = Math.floor(Math.min(vw, 420) * 0.85); var h = Math.floor(Math.min(vh * 0.6, w * 0.55)); return { width: w, height: h }; }
+  function finishScan() {
+    if (!scanner || !running || stopping) return;
+    stopping = true; zoomWrap.style.display = "none";
+    scanner.stop().then(done).catch(done);
+    function done() {
+      running = false; stopping = false;
+      startBtn.textContent = "📷 Nächsten scannen"; startBtn.classList.add("go");
+      startBtn.disabled = false; switchBtn.disabled = true;
+    }
+  }
   function onScan(decodedText, result) {
     if (stopping || !running) return;
     var t = Date.now();
-    var fmtId = result && result.result && result.result.format ? result.result.format.format : null;
     if (decodedText === lastValue && (t - lastAt) < 2000) { lastAt = t; return; }
     lastValue = decodedText; lastAt = t;
-
-    var fmtName = (fmtId != null && FORMAT_NAMES[fmtId]) ? FORMAT_NAMES[fmtId] : "?";
-    var hit = handleCode(decodedText, fmtName, "scan");
-
-    beep();
-    flashSuccess();
-    setStatus((hit ? "✓ Erkannt: " + hit.article.bezeichnung : "✗ Unbekannt: " + decodedText) + " — Kamera gestoppt.");
+    var hit = lookup(decodedText);
+    beep(); flashSuccess();
     finishScan();
+    if (hit) { selectArticle(hit.article); setStatus("✓ Erkannt: " + hit.article.bezeichnung); }
+    else { selectFreitext(""); setStatus("Code " + decodedText + " ist nicht im Stamm — als freien Wunsch erfassen."); freitextName.value = ""; }
   }
-
-  function onScanError() { /* laufende "kein Code im Bild"-Meldungen ignorieren */ }
-
+  function onScanError() {}
   function startWith(deviceId) {
     var cameraArg = deviceId ? deviceId : { facingMode: "environment" };
-    var config = { fps: 12, qrbox: qrboxFn, formatsToSupport: formats };
-    return scanner.start(cameraArg, config, onScan, onScanError);
+    return scanner.start(cameraArg, { fps: 12, qrbox: qrboxFn, formatsToSupport: formats }, onScan, onScanError);
   }
-
-  function tryApply(constraints) {
-    try {
-      var p = scanner.applyVideoConstraints(constraints);
-      if (p && p.catch) p.catch(function () {});
-    } catch (e) {}
-  }
-
+  function tryApply(c) { try { var p = scanner.applyVideoConstraints(c); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
   function setupCameraCapabilities() {
     tryApply({ width: { ideal: 1920 }, height: { ideal: 1080 } });
     tryApply({ advanced: [{ focusMode: "continuous" }] });
-    var caps = {};
-    try { caps = scanner.getRunningTrackCapabilities() || {}; } catch (e) {}
+    var caps = {}; try { caps = scanner.getRunningTrackCapabilities() || {}; } catch (e) {}
     if (caps.zoom && typeof caps.zoom.min === "number" && caps.zoom.max > caps.zoom.min) {
-      zoomRange.min = caps.zoom.min;
-      zoomRange.max = caps.zoom.max;
-      zoomRange.step = caps.zoom.step || 0.1;
-      zoomRange.value = caps.zoom.min;
-      zoomWrap.style.display = "flex";
-    } else {
-      zoomWrap.style.display = "none";
-    }
+      zoomRange.min = caps.zoom.min; zoomRange.max = caps.zoom.max; zoomRange.step = caps.zoom.step || 0.1;
+      zoomRange.value = caps.zoom.min; zoomWrap.style.display = "flex";
+    } else { zoomWrap.style.display = "none"; }
   }
-
-  function applyZoom() {
-    try { scanner.applyVideoConstraints({ advanced: [{ zoom: parseFloat(zoomRange.value) }] }); } catch (e) {}
-  }
-
+  function applyZoom() { try { scanner.applyVideoConstraints({ advanced: [{ zoom: parseFloat(zoomRange.value) }] }); } catch (e) {} }
   function startScanning() {
-    if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kein sicherer Kontext (HTTPS)."); return; }
+    if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kamera braucht HTTPS."); return; }
     if (running) return;
-
-    startBtn.classList.remove("go");
-    lastValue = ""; lastAt = 0;
-
-    startBtn.disabled = true;
-    setStatus("Kamera wird gestartet …");
-
+    startBtn.classList.remove("go"); lastValue = ""; lastAt = 0;
+    startBtn.disabled = true; setStatus("Kamera wird gestartet …");
     if (!scanner) scanner = new Html5Qrcode("reader", { formatsToSupport: formats, verbose: false });
-
     Html5Qrcode.getCameras().then(function (devs) {
-      cameras = devs || [];
-      var deviceId = null;
+      cameras = devs || []; var deviceId = null;
       if (cameras.length > 0) {
         var backIdx = -1;
         for (var i = 0; i < cameras.length; i++) {
@@ -501,98 +574,36 @@
           if (lbl.indexOf("back") >= 0 || lbl.indexOf("rück") >= 0 || lbl.indexOf("environment") >= 0) { backIdx = i; break; }
         }
         camIndex = backIdx >= 0 ? backIdx : cameras.length - 1;
-        deviceId = cameras[camIndex].id;
-        switchBtn.disabled = cameras.length < 2;
+        deviceId = cameras[camIndex].id; switchBtn.disabled = cameras.length < 2;
       }
       return startWith(deviceId);
     }).then(function () {
-      running = true;
-      startBtn.textContent = "Scan stoppen";
-      startBtn.disabled = false;
-      setStatus("Bereit — Barcode ins Bild halten.");
-      setupCameraCapabilities();
-    }).catch(function (err) {
-      startBtn.disabled = false;
-      handleStartError(err);
-    });
+      running = true; startBtn.textContent = "Scan stoppen"; startBtn.disabled = false;
+      setStatus("Bereit — Barcode ins Bild halten."); setupCameraCapabilities();
+    }).catch(function (err) { startBtn.disabled = false; handleStartError(err); });
   }
-
   function handleStartError(err) {
-    var name = (err && err.name) ? err.name : "";
-    var msg = (err && err.message) ? err.message : String(err);
-    if (name === "NotAllowedError" || /permission|denied/i.test(msg)) {
-      setStatus("Kamerazugriff verweigert. Bitte in den Browser-Einstellungen erlauben.");
-    } else if (name === "NotFoundError" || /no camera|not found/i.test(msg)) {
-      setStatus("Keine Kamera gefunden.");
-    } else if (!isSecure()) {
-      warningEl.classList.add("show");
-      setStatus("Kamera braucht HTTPS.");
-    } else {
-      setStatus("Start fehlgeschlagen: " + msg);
-    }
+    var name = (err && err.name) ? err.name : "", msg = (err && err.message) ? err.message : String(err);
+    if (name === "NotAllowedError" || /permission|denied/i.test(msg)) setStatus("Kamerazugriff verweigert. Bitte erlauben.");
+    else if (name === "NotFoundError" || /no camera|not found/i.test(msg)) setStatus("Keine Kamera gefunden.");
+    else if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kamera braucht HTTPS."); }
+    else setStatus("Start fehlgeschlagen: " + msg);
   }
-
   function stopScanning() {
     if (!scanner || !running) return;
-    startBtn.disabled = true;
-    zoomWrap.style.display = "none";
-    scanner.stop().then(function () {
-      running = false;
-      startBtn.textContent = "Scan starten";
-      startBtn.disabled = false;
-      setStatus("Gestoppt.");
-    }).catch(function () {
-      running = false;
-      startBtn.textContent = "Scan starten";
-      startBtn.disabled = false;
-    });
+    startBtn.disabled = true; zoomWrap.style.display = "none";
+    scanner.stop().then(done).catch(done);
+    function done() { running = false; startBtn.textContent = "📷 Scan starten"; startBtn.disabled = false; setStatus("Gestoppt."); }
   }
-
   function switchCamera() {
     if (!scanner || !running || cameras.length < 2) return;
     switchBtn.disabled = true;
-    scanner.stop().then(function () {
-      camIndex = (camIndex + 1) % cameras.length;
-      return startWith(cameras[camIndex].id);
-    }).then(function () {
-      switchBtn.disabled = false;
-      setupCameraCapabilities();
-      var lbl = cameras[camIndex].label || ("Kamera " + (camIndex + 1));
-      setStatus("Kamera: " + lbl);
-    }).catch(function (err) {
-      switchBtn.disabled = false;
-      handleStartError(err);
-    });
+    scanner.stop().then(function () { camIndex = (camIndex + 1) % cameras.length; return startWith(cameras[camIndex].id); })
+      .then(function () { switchBtn.disabled = false; setupCameraCapabilities(); })
+      .catch(function (err) { switchBtn.disabled = false; handleStartError(err); });
   }
 
-  function resetResult() {
-    resultCard.className = "result";
-    resBadge.textContent = "— noch nichts geprüft —";
-    resName.textContent = "";
-    resDetails.innerHTML = "";
-    resCode.textContent = "";
-  }
-
-  function clearHistory() {
-    historyEl.innerHTML = "";
-    var li = document.createElement("li");
-    li.className = "empty-note"; li.textContent = "Noch keine Prüfungen.";
-    historyEl.appendChild(li);
-    resetResult();
-    lastValue = "";
-    setStatus("");
-  }
-
-  // ===== Manuelle Eingabe =====
-  function doManual() {
-    var v = manualInput.value.trim();
-    if (!v) { manualInput.focus(); return; }
-    lastValue = ""; // manuelle Prüfung immer zulassen
-    handleCode(v, null, "manual");
-    setStatus("Manuell geprüft: " + v);
-  }
-
-  // ===== Test-Barcodes rendern =====
+  // ===== Test-Barcodes =====
   var TEST_CODES = [
     { code: "100742", note: "3M Rakel gold (Lief.-Nr)" },
     { code: "101655", note: "NT-Cutter Klingen (Lief.-Nr)" },
@@ -602,36 +613,37 @@
   ];
   function renderBarcodes() {
     if (typeof JsBarcode === "undefined") {
-      barcodesEl.innerHTML = '<p class="tc-hint" style="color:var(--warn)">Barcode-Bibliothek konnte nicht geladen werden (Internet?). Nutze solange das Eingabefeld oben zum Testen.</p>';
-      return;
+      barcodesEl.innerHTML = '<p class="tc-hint" style="color:var(--warn)">Barcode-Bibliothek nicht geladen. Nutze solange die Suche.</p>'; return;
     }
     TEST_CODES.forEach(function (tc) {
-      var card = document.createElement("div");
-      card.className = "bc";
-      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      card.appendChild(svg);
-      var lbl = document.createElement("div");
-      lbl.className = "bc-label"; lbl.textContent = tc.note;
-      card.appendChild(lbl);
+      var card = document.createElement("div"); card.className = "bc";
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); card.appendChild(svg);
+      var lbl = document.createElement("div"); lbl.className = "bc-label"; lbl.textContent = tc.note; card.appendChild(lbl);
       barcodesEl.appendChild(card);
-      try {
-        JsBarcode(svg, tc.code, { format: "CODE128", width: 2, height: 50, fontSize: 13, margin: 6 });
-      } catch (e) { lbl.textContent = "Fehler: " + tc.code; }
+      try { JsBarcode(svg, tc.code, { format: "CODE128", width: 2, height: 50, fontSize: 13, margin: 6 }); }
+      catch (e) { lbl.textContent = "Fehler: " + tc.code; }
     });
   }
 
   // ===== Events + Init =====
   startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
   switchBtn.addEventListener("click", switchCamera);
-  clearBtn.addEventListener("click", clearHistory);
   zoomRange.addEventListener("input", applyZoom);
-  manualBtn.addEventListener("click", doManual);
-  manualInput.addEventListener("keydown", function (e) { if (e.key === "Enter") doManual(); });
+  searchInput.addEventListener("input", renderSearch);
+  freitextBtn.addEventListener("click", function () { selectFreitext(searchInput.value.trim()); });
+  dringSeg.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (b) setDringlichkeit(b.getAttribute("data-level"));
+  });
+  cancelBtn.addEventListener("click", closeForm);
+  saveBtn.addEventListener("click", saveVormerkung);
+  clearBtn.addEventListener("click", clearAll);
+  melderInput.addEventListener("change", function () { try { localStorage.setItem(LS_MELDER, melderInput.value.trim()); } catch (e) {} });
 
   buildIndex();
   artCountEl.textContent = ARTICLES.length;
+  try { melderInput.value = localStorage.getItem(LS_MELDER) || ""; } catch (e) {}
   renderBarcodes();
-  clearHistory();
+  renderVormerkungen();
   if (!isSecure()) warningEl.classList.add("show");
 })();
 </script>
