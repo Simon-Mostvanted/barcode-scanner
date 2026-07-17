@@ -716,7 +716,7 @@
           (v.besteller_notiz ? '<div class="v-notiz" style="margin-top:6px;">📝 ' + escapeHtml(v.besteller_notiz) + "</div>" : "");
         row.appendChild(info);
         var rowActs = document.createElement("div"); rowActs.className = "cg-item-acts";
-        var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝"; noteBtn.title = "Notiz";
+        var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
         noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
         rowActs.appendChild(noteBtn);
         var art = articleByNr(v.art_nr);
