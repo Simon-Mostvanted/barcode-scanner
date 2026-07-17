@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
-<title>MV Bestell-Scanner — Phase 3a: Besteller-Cockpit</title>
+<title>MV Bestell-Scanner — Phase 4: Excel-Import</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -217,6 +217,14 @@
     </div>
     <ul id="adminList"></ul>
 
+    <h2 class="section">Artikelstamm (Excel-Import)</h2>
+    <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Eine neue Merger-Excel hochladen <b>ersetzt</b> den kompletten Stamm.</p>
+    <div class="gate-entry" style="margin-bottom:6px;">
+      <input id="importFile" type="file" accept=".xlsx,.xls" style="padding:9px; font-size:0.85rem;">
+      <button id="importBtn">Import</button>
+    </div>
+    <div class="status" id="importStatus" style="text-align:left; min-height:0;"></div>
+
     <h2 class="section">Bestellungen — nach Lieferant</h2>
     <div class="list-head" style="margin-top:0;">
       <h2>Offen <span class="lh-count" id="adminVCount">(0)</span></h2>
@@ -233,7 +241,7 @@
 <div class="wrap" id="app" style="display:none;">
   <header>
     <h1>📷 MV Bestell-Scanner</h1>
-    <p>Phase 3a — zentrale Cloud-Liste + Besteller-Cockpit. <span class="count" id="artCount">0</span> Test-Artikel.</p>
+    <p>Phase 4 — Artikelstamm aus der Cloud. <span class="count" id="artCount">0</span> Artikel im Stamm.</p>
   </header>
 
   <div id="warning" class="banner">
@@ -332,6 +340,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -343,7 +352,9 @@
   var MAIL_SIGNATUR = ""; // optionale feste Signatur unter der Mail (leer = Gmail soll eigene einfügen)
   var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  var ARTICLES = [{"warengruppe":"Werkzeug","bezeichnung":"3M Rakel gold - 7 x 10 cm","artNrLieferant":"100742","artNrHersteller":"-","hersteller":"3M","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"5.89","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"NT-Cutter BD100 Klingen - 30° Breite: 9 mm","artNrLieferant":"101655","artNrHersteller":"-","hersteller":"NT-Cutter","lieferant":"4GM GmbH/Folienwelt.de","vpe":"5","ek":"0.33","lagerort":"Folien"},{"warengruppe":"Werkzeug","bezeichnung":"Orafol Rakel Squeegee grey plastic - 7 x 10 cm","artNrLieferant":"100744","artNrHersteller":"-","hersteller":"Orafol","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"1.09","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"10 Pcs 4mm Shank Single Flute Spiral End Mill Cutter Router Bits 22m","artNrLieferant":"","artNrHersteller":"-","hersteller":"","lieferant":"Ali express","vpe":"10","ek":"1.469","lagerort":"Tischlerei"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"Einschneidenfräser Ø 4mm, SL 22 mm","artNrLieferant":"","artNrHersteller":"","hersteller":"","lieferant":"Ali Express","vpe":"Stk.","ek":"1.51","lagerort":"Tischlerei"},{"warengruppe":"Anbauteile aussen","bezeichnung":"KERL 500 black (Zurröse für Airline)","artNrLieferant":"310285-0040","artNrHersteller":"","hersteller":"","lieferant":"allsafe GmbH & Co. KG","vpe":"40","ek":"4.625","lagerort":"Wst Wagen"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER. Protección frontal SPRINTER XW907 VS30 4MATIC","artNrLieferant":"PDMBS3A28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"540","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección caja cambio/transfer SPRINTER W907 VS30 4MATIC","artNrLieferant":"PDMBS3B28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"322.5","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección depósito SPRINTER 4x4 W906-W907 VS30 4Matic","artNrLieferant":"PDMBS23D6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"315","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección diferen. SPRINTER 4X4,2.2,3.0,2.04MATIC (NOT 5.5)","artNrLieferant":"PDMBS23DIF6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"180","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"Trittstufe elektrisch, Serie ETB, Transit v363","artNrLieferant":"101991","artNrHersteller":"","hersteller":"","lieferant":"alphadynamik","vpe":"1","ek":"982.1","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile aussen","bezeichnung":"ETB 0900 Sprinter 906/907","artNrLieferant":"102398","artNrHersteller":"-","hersteller":"","lieferant":"AlphaDynamik GmbH & Co. KG ","vpe":"1","ek":"816.2","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile innen","bezeichnung":"Aluminium Nutprofil 3030 Schwarz","artNrLieferant":"3030-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"lfm","ek":"12.23","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Aluminium Schwarz","artNrLieferant":"3030L-ALU BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.99","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Linsenkopfschrauben ISO 7380 M6x12 schwarz","artNrLieferant":"ISO 7380-M6X12 BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.1","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M8","artNrLieferant":"8-4-M8.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M6","artNrLieferant":"8-4-M6.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Schwarz","artNrLieferant":"3030L-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.52","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkelabdeckkappe 3030L","artNrLieferant":"3030L-COVER","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.17","lagerort":"Schweißerei"},{"warengruppe":"Sanitär Geräte","bezeichnung":"12 V – 2 Arten von Verbindungen – motorisiertes Ventil 12 V Elektromagnetventil, normalerweise geschlossen, 2-Wege-Ventil, motorisiert, 1/2 3/4 1 1-1/4 1-1/2 2 Zoll (3/4 Zoll DN20)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"28.478","lagerort":"Sanitär"},{"warengruppe":"Sanitär Geräte","bezeichnung":"2 Modi - 2 wege motorkugelhahn 12v zonenventil 2 wege ventil elektrisch 1/2 3/4 1 1-1/4 1-1/2 2 zoll (1 zoll DN25)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"33.76","lagerort":"Sanitär"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"2 Stück Kabelverschraubung für Anderson Stecker, 120A Hochstrom Schneller Kabelstecker, Zertifiziert Batterieanschluss Stecker, Schnellanschluss für Auto, Wohnwagen, Wohnmobil, Boot (grau)","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.09","lagerort":"Elektrolager"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"2 Stück Schwerlast Kugellagerscharniere 10cm, Bolatus Türscharnier Schwarz Edelstahl Scharniere Scharnier mit 8 Löchern für Massive Türen Gartentor Innen Außen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.62","lagerort":"Tischlerei"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"20 Rundknöpfe inkl. Schrauben - Planenknöpfe - perfekt zum Befestigen von Anhängernetzen und Planen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"20","ek":"0.54","lagerort":"Tischlerei"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"AUPROTEC KFZ Kabel 2x4,0 mm² 50m flach FLRYY I Flachkabel Schlauchleitung/Fahrzeugleitung Verschiedene Anwendungen I 2 poliges Kabel für Anhänger geeignet","artNrLieferant":"-","artNrHersteller":"57993478386682","hersteller":"","lieferant":"Amazon","vpe":"m","ek":"2.305","lagerort":"Elektrolager"},{"warengruppe":"Sanitär installationsmaterial","bezeichnung":"VIOKS Panzerschlauch 1/2 Zoll (19,3mm) ÜM x M10 30 cm & Wasserschlauch Flexibel Trinkwasserschlauch Flexschlauch fuer WC Spülkasten Waschbecken Küchenarmatur Bad & Wasserhahn Anschlussschlauch","artNrLieferant":"-","artNrHersteller":"B07RZS283R","hersteller":"","lieferant":"Amazon","vpe":"","ek":"7.98","lagerort":"Sanitär"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"Hülsenmuttern für Bullauge mit Senkkopf und Innensechskant (ISK) - Antrieb - M4x12 - (10 Stück) - aus rostfreiem Edelstahl A1 (VA) - NIRO - SC9062 | SC-Normteile®","artNrLieferant":"-","artNrHersteller":"FBA-9062-1-040-012-10","hersteller":"SC Normteile","lieferant":"amazon","vpe":"1","ek":"1.289","lagerort":"Tischlerei"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"GESIPA G-Sealed Blindnietmutter Stahl - Flachrundkopf","artNrLieferant":"GES1758509","artNrHersteller":"1758509","hersteller":"","lieferant":"Bauportal24","vpe":"100","ek":"0.32","lagerort":"WST Wagen"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob Verschlussstopfen 50 St.","artNrLieferant":"4024092137600","artNrHersteller":"WJ-DM 20-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.17","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob WJ-DM 16-VPA/SW Verschlussstopfen 50 St.","artNrLieferant":"4024092156311","artNrHersteller":"WJ-DM 16-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.15","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Icotek KEL-DPZ 40/8 Kabeldurchführungsplatte Klemm-Ø (max.) 10.2 mm Polyamid, Elastomer Grau 1 St.","artNrLieferant":"418836 - 62","artNrHersteller":"43741","hersteller":"","lieferant":"Conrad","vpe":"1","ek":"19.32","lagerort":"Elektrolager"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin DashCam Tandem","artNrLieferant":"119196","artNrHersteller":"010-02259-01","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"261","lagerort":"Palettenregal"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Garmin Parking Mode Kabel","artNrLieferant":"108171","artNrHersteller":"010-12530-03","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"22","lagerort":"Palettenregal"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin Tread XL Overland Edition","artNrLieferant":"140206","artNrHersteller":"010-02509-10","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"1105","lagerort":"Palettenregal"}];
+  var TEST_ARTICLES = [{"warengruppe":"Werkzeug","bezeichnung":"3M Rakel gold - 7 x 10 cm","artNrLieferant":"100742","artNrHersteller":"-","hersteller":"3M","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"5.89","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"NT-Cutter BD100 Klingen - 30° Breite: 9 mm","artNrLieferant":"101655","artNrHersteller":"-","hersteller":"NT-Cutter","lieferant":"4GM GmbH/Folienwelt.de","vpe":"5","ek":"0.33","lagerort":"Folien"},{"warengruppe":"Werkzeug","bezeichnung":"Orafol Rakel Squeegee grey plastic - 7 x 10 cm","artNrLieferant":"100744","artNrHersteller":"-","hersteller":"Orafol","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"1.09","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"10 Pcs 4mm Shank Single Flute Spiral End Mill Cutter Router Bits 22m","artNrLieferant":"","artNrHersteller":"-","hersteller":"","lieferant":"Ali express","vpe":"10","ek":"1.469","lagerort":"Tischlerei"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"Einschneidenfräser Ø 4mm, SL 22 mm","artNrLieferant":"","artNrHersteller":"","hersteller":"","lieferant":"Ali Express","vpe":"Stk.","ek":"1.51","lagerort":"Tischlerei"},{"warengruppe":"Anbauteile aussen","bezeichnung":"KERL 500 black (Zurröse für Airline)","artNrLieferant":"310285-0040","artNrHersteller":"","hersteller":"","lieferant":"allsafe GmbH & Co. KG","vpe":"40","ek":"4.625","lagerort":"Wst Wagen"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER. Protección frontal SPRINTER XW907 VS30 4MATIC","artNrLieferant":"PDMBS3A28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"540","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección caja cambio/transfer SPRINTER W907 VS30 4MATIC","artNrLieferant":"PDMBS3B28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"322.5","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección depósito SPRINTER 4x4 W906-W907 VS30 4Matic","artNrLieferant":"PDMBS23D6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"315","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección diferen. SPRINTER 4X4,2.2,3.0,2.04MATIC (NOT 5.5)","artNrLieferant":"PDMBS23DIF6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"180","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"Trittstufe elektrisch, Serie ETB, Transit v363","artNrLieferant":"101991","artNrHersteller":"","hersteller":"","lieferant":"alphadynamik","vpe":"1","ek":"982.1","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile aussen","bezeichnung":"ETB 0900 Sprinter 906/907","artNrLieferant":"102398","artNrHersteller":"-","hersteller":"","lieferant":"AlphaDynamik GmbH & Co. KG ","vpe":"1","ek":"816.2","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile innen","bezeichnung":"Aluminium Nutprofil 3030 Schwarz","artNrLieferant":"3030-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"lfm","ek":"12.23","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Aluminium Schwarz","artNrLieferant":"3030L-ALU BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.99","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Linsenkopfschrauben ISO 7380 M6x12 schwarz","artNrLieferant":"ISO 7380-M6X12 BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.1","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M8","artNrLieferant":"8-4-M8.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M6","artNrLieferant":"8-4-M6.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Schwarz","artNrLieferant":"3030L-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.52","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkelabdeckkappe 3030L","artNrLieferant":"3030L-COVER","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.17","lagerort":"Schweißerei"},{"warengruppe":"Sanitär Geräte","bezeichnung":"12 V – 2 Arten von Verbindungen – motorisiertes Ventil 12 V Elektromagnetventil, normalerweise geschlossen, 2-Wege-Ventil, motorisiert, 1/2 3/4 1 1-1/4 1-1/2 2 Zoll (3/4 Zoll DN20)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"28.478","lagerort":"Sanitär"},{"warengruppe":"Sanitär Geräte","bezeichnung":"2 Modi - 2 wege motorkugelhahn 12v zonenventil 2 wege ventil elektrisch 1/2 3/4 1 1-1/4 1-1/2 2 zoll (1 zoll DN25)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"33.76","lagerort":"Sanitär"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"2 Stück Kabelverschraubung für Anderson Stecker, 120A Hochstrom Schneller Kabelstecker, Zertifiziert Batterieanschluss Stecker, Schnellanschluss für Auto, Wohnwagen, Wohnmobil, Boot (grau)","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.09","lagerort":"Elektrolager"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"2 Stück Schwerlast Kugellagerscharniere 10cm, Bolatus Türscharnier Schwarz Edelstahl Scharniere Scharnier mit 8 Löchern für Massive Türen Gartentor Innen Außen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.62","lagerort":"Tischlerei"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"20 Rundknöpfe inkl. Schrauben - Planenknöpfe - perfekt zum Befestigen von Anhängernetzen und Planen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"20","ek":"0.54","lagerort":"Tischlerei"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"AUPROTEC KFZ Kabel 2x4,0 mm² 50m flach FLRYY I Flachkabel Schlauchleitung/Fahrzeugleitung Verschiedene Anwendungen I 2 poliges Kabel für Anhänger geeignet","artNrLieferant":"-","artNrHersteller":"57993478386682","hersteller":"","lieferant":"Amazon","vpe":"m","ek":"2.305","lagerort":"Elektrolager"},{"warengruppe":"Sanitär installationsmaterial","bezeichnung":"VIOKS Panzerschlauch 1/2 Zoll (19,3mm) ÜM x M10 30 cm & Wasserschlauch Flexibel Trinkwasserschlauch Flexschlauch fuer WC Spülkasten Waschbecken Küchenarmatur Bad & Wasserhahn Anschlussschlauch","artNrLieferant":"-","artNrHersteller":"B07RZS283R","hersteller":"","lieferant":"Amazon","vpe":"","ek":"7.98","lagerort":"Sanitär"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"Hülsenmuttern für Bullauge mit Senkkopf und Innensechskant (ISK) - Antrieb - M4x12 - (10 Stück) - aus rostfreiem Edelstahl A1 (VA) - NIRO - SC9062 | SC-Normteile®","artNrLieferant":"-","artNrHersteller":"FBA-9062-1-040-012-10","hersteller":"SC Normteile","lieferant":"amazon","vpe":"1","ek":"1.289","lagerort":"Tischlerei"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"GESIPA G-Sealed Blindnietmutter Stahl - Flachrundkopf","artNrLieferant":"GES1758509","artNrHersteller":"1758509","hersteller":"","lieferant":"Bauportal24","vpe":"100","ek":"0.32","lagerort":"WST Wagen"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob Verschlussstopfen 50 St.","artNrLieferant":"4024092137600","artNrHersteller":"WJ-DM 20-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.17","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob WJ-DM 16-VPA/SW Verschlussstopfen 50 St.","artNrLieferant":"4024092156311","artNrHersteller":"WJ-DM 16-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.15","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Icotek KEL-DPZ 40/8 Kabeldurchführungsplatte Klemm-Ø (max.) 10.2 mm Polyamid, Elastomer Grau 1 St.","artNrLieferant":"418836 - 62","artNrHersteller":"43741","hersteller":"","lieferant":"Conrad","vpe":"1","ek":"19.32","lagerort":"Elektrolager"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin DashCam Tandem","artNrLieferant":"119196","artNrHersteller":"010-02259-01","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"261","lagerort":"Palettenregal"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Garmin Parking Mode Kabel","artNrLieferant":"108171","artNrHersteller":"010-12530-03","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"22","lagerort":"Palettenregal"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin Tread XL Overland Edition","artNrLieferant":"140206","artNrHersteller":"010-02509-10","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"1105","lagerort":"Palettenregal"}];
+
+  var ARTICLES = TEST_ARTICLES; // wird beim Start durch Cloud-Artikel ersetzt, falls vorhanden
 
   // ===== Artikel-Index =====
   function norm(s) { return (s == null ? "" : String(s)).trim().toUpperCase().replace(/\s+/g, " "); }
@@ -356,7 +367,95 @@
     var n = norm(c); if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
     var nl = normLoose(c); if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
   }
-  function buildIndex() { ARTICLES.forEach(function (a) { addToIndex(a.artNrLieferant, a, "Lieferanten-Nr"); addToIndex(a.artNrHersteller, a, "Hersteller-Nr"); }); }
+  function buildIndex() { idx = Object.create(null); ARTICLES.forEach(function (a) { addToIndex(a.artNrLieferant, a, "Lieferanten-Nr"); addToIndex(a.artNrHersteller, a, "Hersteller-Nr"); }); }
+
+  // ===== Artikelstamm aus Cloud laden / Import =====
+  function mapCloudArticle(r) {
+    return {
+      bezeichnung: r.bezeichnung, artNrLieferant: r.art_nr_lieferant, artNrHersteller: r.art_nr_hersteller,
+      lieferant: r.lieferant, hersteller: r.hersteller, warengruppe: r.warengruppe, lagerort: r.lagerort,
+      vpe: r.vpe, ek: r.ek, bestellweg: r.bestellweg, bestellMail: r.bestell_mail, produktLink: r.produktlink
+    };
+  }
+  function useArticles(list, isTest) {
+    ARTICLES = list; buildIndex();
+    var n = ARTICLES.length;
+    artCountEl.textContent = n + (isTest ? " (Test)" : "");
+    if (artikelCount) artikelCount.textContent = isTest ? (n + " Test-Artikel (noch kein Import)") : (n + " Artikel");
+  }
+  function loadArticles() {
+    return db.from("artikel").select("*").then(function (r) {
+      if (r.error) { console.warn("artikel laden", r.error); useArticles(TEST_ARTICLES, true); return; }
+      if (r.data && r.data.length) useArticles(r.data.map(mapCloudArticle), false);
+      else useArticles(TEST_ARTICLES, true);
+    });
+  }
+  function normHeader(s) { return String(s == null ? "" : s).toLowerCase().replace(/[\s.\-_()]/g, ""); }
+  function cleanCell(v) { return (v == null ? "" : String(v)).replace(/\s+/g, " ").trim(); }
+  function mapRow(row) {
+    var normed = {};
+    Object.keys(row).forEach(function (k) { normed[normHeader(k)] = row[k]; });
+    function g() { for (var i = 0; i < arguments.length; i++) { var key = normHeader(arguments[i]); if (key in normed) return cleanCell(normed[key]); } return ""; }
+    return {
+      art_nr_lieferant: g("Art.nr.Lieferant", "Artnr Lieferant", "Art-Nr Lieferant", "Lieferanten-Nr"),
+      art_nr_hersteller: g("Art.nr.Hersteller", "Artnr Hersteller", "Hersteller-Nr"),
+      bezeichnung: g("Bezeichnung"),
+      lieferant: g("Lieferant"),
+      hersteller: g("Hersteller"),
+      warengruppe: g("Warengruppe"),
+      lagerort: g("Lagerort"),
+      lagerplatz: g("Lagerplatz"),
+      mass: g("Maß", "Mass"),
+      farbe: g("Farbe"),
+      vpe: g("VPE"),
+      ek: g("EK (exkl.)", "EK"),
+      vk: g("VK (inkl.)", "VK"),
+      bestellweg: g("Bestellweg"),
+      bestell_mail: g("Bestell-Mail", "Bestellmail", "Bestell Mail"),
+      produktlink: g("Produktlink", "Produkt-Link", "Shop-Link", "Shoplink")
+    };
+  }
+  function parseExcel(buf) {
+    var wb = XLSX.read(buf, { type: "array" });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    var out = [];
+    rows.forEach(function (row) {
+      var m = mapRow(row);
+      if (!m.bezeichnung && !m.art_nr_lieferant && !m.art_nr_hersteller) return; // leere Zeile
+      out.push(m);
+    });
+    return out;
+  }
+  function doImport() {
+    var f = importFile.files && importFile.files[0];
+    if (!f) { toast("Bitte zuerst eine Excel-Datei wählen", true); return; }
+    if (typeof XLSX === "undefined") { importStatus.textContent = "Excel-Bibliothek nicht geladen (Internet?)."; return; }
+    importBtn.disabled = true; importStatus.textContent = "Lese Datei …";
+    f.arrayBuffer().then(function (buf) {
+      var parsed;
+      try { parsed = parseExcel(buf); } catch (e) { importStatus.textContent = "Datei konnte nicht gelesen werden: " + e.message; importBtn.disabled = false; return; }
+      if (!parsed.length) { importStatus.textContent = "Keine Artikel in der Datei gefunden."; importBtn.disabled = false; return; }
+      importStatus.textContent = parsed.length + " Artikel gefunden. Alten Stamm ersetzen …";
+      db.from("artikel").delete().not("id", "is", null).then(function (del) {
+        if (del.error) { importStatus.textContent = "Fehler beim Leeren: " + del.error.message; importBtn.disabled = false; return; }
+        var CHUNK = 400, done = 0;
+        function next() {
+          if (done >= parsed.length) {
+            loadArticles().then(function () { importStatus.textContent = "✓ " + done + " Artikel importiert."; toast(done + " Artikel importiert"); importBtn.disabled = false; });
+            return;
+          }
+          var chunk = parsed.slice(done, done + CHUNK);
+          db.from("artikel").insert(chunk).then(function (ins) {
+            if (ins.error) { importStatus.textContent = "Fehler beim Speichern: " + ins.error.message; importBtn.disabled = false; return; }
+            done += chunk.length; importStatus.textContent = "Speichere … " + done + "/" + parsed.length;
+            next();
+          });
+        }
+        next();
+      });
+    });
+  }
   function lookup(code) { var n = norm(code); if (idx[n]) return idx[n]; var nl = normLoose(code); return idx[nl] || null; }
   function primaryNr(a) {
     var l = (a.artNrLieferant || "").trim(); if (l && l !== "-") return l;
@@ -390,6 +489,7 @@
   var openBestellerBtn = $("openBestellerBtn"), besteller = $("besteller"), bestellerBack = $("bestellerBack");
   var newNameInput = $("newNameInput"), addNameBtn = $("addNameBtn"), adminList = $("adminList"), adminVCount = $("adminVCount"), clearAllBtn = $("clearAllBtn");
   var cockpit = $("cockpit"), doneList = $("doneList"), doneCount = $("doneCount");
+  var importFile = $("importFile"), importBtn = $("importBtn"), importStatus = $("importStatus"), artikelCount = $("artikelCount");
   var searchInput = $("searchInput"), searchResults = $("searchResults"), freitextBtn = $("freitextBtn");
   var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub"), fpHint = $("fpHint");
   var freitextField = $("freitextField"), freitextName = $("freitextName");
@@ -850,6 +950,7 @@
   bestellerBack.addEventListener("click", showGate);
   addNameBtn.addEventListener("click", function () { var v = newNameInput.value.trim(); if (!v) { newNameInput.focus(); return; } addName(v).then(function (ok) { if (ok) { newNameInput.value = ""; renderAdminNames(); toast("Name hinzugefügt"); } }); });
   clearAllBtn.addEventListener("click", clearAllVormerkungen);
+  importBtn.addEventListener("click", doImport);
   startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
   switchBtn.addEventListener("click", switchCamera);
   refreshBtn.addEventListener("click", function () { refreshVormerkungen().then(function () { toast("Aktualisiert"); }); });
@@ -862,6 +963,7 @@
 
   buildIndex();
   artCountEl.textContent = ARTICLES.length;
+  loadArticles(); // echten Stamm aus der Cloud nachladen (ersetzt Testdaten, falls vorhanden)
   renderBarcodes();
   if (!isSecure()) warningEl.classList.add("show");
   subscribeRealtime();
