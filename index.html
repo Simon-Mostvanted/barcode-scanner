@@ -271,7 +271,7 @@
   </div>
 
   <div class="divider">— oder ohne Scannen: suchen —</div>
-  <input id="searchInput" type="search" autocomplete="off" autocapitalize="off" placeholder="Artikel suchen: Name oder Nummer eingeben…">
+  <input id="searchInput" type="search" autocomplete="off" autocapitalize="off" placeholder="Suche: Name, Nummer, Lieferant oder Hersteller…">
   <ul id="searchResults"></ul>
   <button id="freitextBtn" class="ghost" style="margin-top:10px;">✏️ Artikel nicht dabei? Freien Wunsch eintragen</button>
 
@@ -476,13 +476,16 @@
     for (var i = 0; i < ARTICLES.length; i++) {
       var a = ARTICLES[i], score = 0, bez = (a.bezeichnung || "").toLowerCase();
       var nrL = normLoose(a.artNrLieferant), nrH = normLoose(a.artNrHersteller);
+      var lief = (a.lieferant || "").toLowerCase(), herst = (a.hersteller || "").toLowerCase();
       if (qLoose && (nrL === qLoose || nrH === qLoose)) score = 100;
       else if (qLoose.length >= 3 && (nrL.indexOf(qLoose) >= 0 || nrH.indexOf(qLoose) >= 0)) score = 60;
       else if (bez.indexOf(ql) >= 0) score = 40;
+      else if (lief.indexOf(ql) >= 0) score = 30;   // Lieferant
+      else if (herst.indexOf(ql) >= 0) score = 25;  // Hersteller
       if (score > 0) scored.push({ a: a, score: score });
     }
     scored.sort(function (x, y) { return y.score - x.score; });
-    return scored.slice(0, 8).map(function (s) { return s.a; });
+    return scored.slice(0, 12).map(function (s) { return s.a; });
   }
 
   // ===== DOM =====
@@ -842,7 +845,7 @@
       var li = document.createElement("li");
       var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
       var mt = document.createElement("div"); mt.className = "sr-meta"; var nr = primaryNr(a);
-      mt.textContent = (a.lieferant || "") + (nr ? "  ·  " + nr : "");
+      mt.textContent = (a.lieferant || "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
       li.appendChild(nm); li.appendChild(mt);
       li.addEventListener("click", function () { selectArticle(a); });
       searchResults.appendChild(li);
