@@ -384,11 +384,19 @@
     if (artikelCount) artikelCount.textContent = isTest ? (n + " Test-Artikel (noch kein Import)") : (n + " Artikel");
   }
   function loadArticles() {
-    return db.from("artikel").select("*").then(function (r) {
-      if (r.error) { console.warn("artikel laden", r.error); useArticles(TEST_ARTICLES, true); return; }
-      if (r.data && r.data.length) useArticles(r.data.map(mapCloudArticle), false);
+    // Supabase liefert je Abfrage max. 1000 Zeilen → blockweise ALLE laden
+    var all = [];
+    function page(from) {
+      return db.from("artikel").select("*").order("id", { ascending: true }).range(from, from + 999).then(function (r) {
+        if (r.error) throw r.error;
+        all = all.concat(r.data || []);
+        if (r.data && r.data.length === 1000) return page(from + 1000);
+      });
+    }
+    return page(0).then(function () {
+      if (all.length) useArticles(all.map(mapCloudArticle), false);
       else useArticles(TEST_ARTICLES, true);
-    });
+    }).catch(function (e) { console.warn("artikel laden", e); useArticles(TEST_ARTICLES, true); });
   }
   function normHeader(s) { return String(s == null ? "" : s).toLowerCase().replace(/[\s.\-_()]/g, ""); }
   function cleanCell(v) { return (v == null ? "" : String(v)).replace(/\s+/g, " ").trim(); }
