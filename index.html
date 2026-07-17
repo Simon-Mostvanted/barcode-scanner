@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
-<title>MV Bestell-Scanner — Phase 2b: Cloud</title>
+<title>MV Bestell-Scanner — Phase 3a: Besteller-Cockpit</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -136,6 +136,22 @@
   #adminList .a-name { flex: 1; font-weight: 600; }
   #adminList .a-btn { flex: 0 0 auto; width: auto; padding: 6px 10px; font-size: 0.78rem; }
 
+  /* Besteller-Cockpit: Gruppen nach Lieferant */
+  .cg { border: 1px solid var(--card2); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .cg-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; background: var(--card2); padding: 10px 12px; }
+  .cg-title { font-weight: 700; font-size: 0.92rem; }
+  .cg-acts { display: flex; gap: 8px; }
+  .cg-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; font-size: 0.78rem; }
+  .cg-item { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 10px 12px; border-top: 1px solid var(--card2); }
+  .cg-info { flex: 1; font-size: 0.9rem; line-height: 1.3; }
+  .cg-menge { font-weight: 700; }
+  .cg-sub { color: var(--muted); font-size: 0.76rem; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .cg-cmt { font-size: 0.8rem; margin-top: 3px; }
+  .cg-item-acts { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+  .cg-mini { width: auto; padding: 7px 10px; font-size: 0.76rem; background: var(--card2); color: var(--text); }
+  .cg-mini.ok { background: var(--ok); color: #052e16; }
+  .badge.done { background: #14311f; color: #86efac; border: 1px solid var(--ok); }
+
   .testcodes { margin-top: 18px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
   .testcodes summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
   .tc-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.45; margin: 4px 0 8px; }
@@ -201,19 +217,23 @@
     </div>
     <ul id="adminList"></ul>
 
-    <h2 class="section">Alle Vormerkungen</h2>
+    <h2 class="section">Bestellungen — nach Lieferant</h2>
     <div class="list-head" style="margin-top:0;">
-      <h2>Gesamt <span class="lh-count" id="adminVCount">(0)</span></h2>
+      <h2>Offen <span class="lh-count" id="adminVCount">(0)</span></h2>
       <button class="ghost" id="clearAllBtn">Alle löschen</button>
     </div>
-    <p class="tc-hint">Das eigentliche Bestellen (Gmail/Shop, „bestellt"-Haken, Zusammenfassung pro Lieferant) kommt in Phase&nbsp;3. Hier siehst du vorerst die zentrale Liste und kannst aufräumen.</p>
+    <div id="cockpit"></div>
+    <details class="testcodes" id="doneWrap" style="margin-top:14px;">
+      <summary>Bereits bestellt <span id="doneCount"></span></summary>
+      <ul id="doneList" style="list-style:none; margin:10px 0 0; padding:0;"></ul>
+    </details>
   </div>
 </div>
 
 <div class="wrap" id="app" style="display:none;">
   <header>
     <h1>📷 MV Bestell-Scanner</h1>
-    <p>Phase 2b — zentrale Cloud-Liste. <span class="count" id="artCount">0</span> Test-Artikel.</p>
+    <p>Phase 3a — zentrale Cloud-Liste + Besteller-Cockpit. <span class="count" id="artCount">0</span> Test-Artikel.</p>
   </header>
 
   <div id="warning" class="banner">
@@ -368,6 +388,7 @@
   var lastUserWrap = $("lastUserWrap"), lastUserBtn = $("lastUserBtn"), currentUserEl = $("currentUser"), changeNameBtn = $("changeNameBtn");
   var openBestellerBtn = $("openBestellerBtn"), besteller = $("besteller"), bestellerBack = $("bestellerBack");
   var newNameInput = $("newNameInput"), addNameBtn = $("addNameBtn"), adminList = $("adminList"), adminVCount = $("adminVCount"), clearAllBtn = $("clearAllBtn");
+  var cockpit = $("cockpit"), doneList = $("doneList"), doneCount = $("doneCount");
   var searchInput = $("searchInput"), searchResults = $("searchResults"), freitextBtn = $("freitextBtn");
   var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub"), fpHint = $("fpHint");
   var freitextField = $("freitextField"), freitextName = $("freitextName");
@@ -396,7 +417,7 @@
       showCloudErr(false); vormCache = r.data || []; return vormCache;
     });
   }
-  function refreshVormerkungen() { return fetchVormerkungen().then(function () { renderVormerkungen(); }); }
+  function refreshVormerkungen() { return fetchVormerkungen().then(function () { renderVormerkungen(); if (besteller.classList.contains("show")) renderCockpit(); }); }
 
   var DRING_LABEL = { normal: "Normal", dringend: "Dringend", sofort: "Sofort" };
   function buildVItem(v, forAdmin) {
@@ -409,6 +430,7 @@
     var meta = document.createElement("div"); meta.className = "v-meta";
     meta.innerHTML =
       '<span class="badge menge">' + v.menge + "×</span>" +
+      (v.status === "bestellt" ? '<span class="badge done">✓ bestellt ' + fmtDate(v.bestellt_am) + "</span>" : "") +
       '<span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || escapeHtml(v.dringlichkeit)) + "</span>" +
       (v.is_freitext ? '<span class="badge freitext">Freitext</span>' : "") +
       "<span>" + escapeHtml(v.lieferant || (v.is_freitext ? "—" : "")) + "</span>" +
@@ -420,7 +442,6 @@
   }
   function renderVormerkungen() {
     vCount.textContent = "(" + vormCache.length + ")";
-    adminVCount.textContent = "(" + vormCache.length + ")";
     vlist.innerHTML = "";
     if (!vormCache.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts vorgemerkt."; vlist.appendChild(e); return; }
     vormCache.forEach(function (v) { vlist.appendChild(buildVItem(v)); });
@@ -525,6 +546,98 @@
       li.appendChild(nm); li.appendChild(ren); li.appendChild(del);
       adminList.appendChild(li);
     });
+  }
+
+  // ===== Besteller-Cockpit (Phase 3a) =====
+  function articleByNr(nr) { var h = nr ? lookup(nr) : null; return h ? h.article : null; }
+  function groupByLieferant(items) {
+    var groups = {}, order = [];
+    items.forEach(function (v) {
+      var key = (v.lieferant && v.lieferant.trim()) ? v.lieferant.trim() : (v.is_freitext ? "Freitext / ohne Lieferant" : "Ohne Lieferant");
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(v);
+    });
+    order.sort(function (a, b) { return a.localeCompare(b, "de"); });
+    return order.map(function (k) { return { lieferant: k, items: groups[k] }; });
+  }
+  function renderCockpit() {
+    var open = vormCache.filter(function (v) { return v.status !== "bestellt"; });
+    adminVCount.textContent = "(" + open.length + ")";
+    cockpit.innerHTML = "";
+    if (!open.length) { var e = document.createElement("div"); e.className = "v-empty"; e.textContent = "Keine offenen Vormerkungen."; cockpit.appendChild(e); }
+    else groupByLieferant(open).forEach(function (g) {
+      var box = document.createElement("div"); box.className = "cg";
+      var head = document.createElement("div"); head.className = "cg-head";
+      var title = document.createElement("div"); title.className = "cg-title"; title.textContent = g.lieferant + " (" + g.items.length + ")";
+      var acts = document.createElement("div"); acts.className = "cg-acts";
+      var gm = document.createElement("button"); gm.className = "cg-btn"; gm.textContent = "📧 Gmail-Entwurf";
+      gm.addEventListener("click", function () { gmailDraft(g); });
+      var allb = document.createElement("button"); allb.className = "cg-btn ghost"; allb.textContent = "Alle bestellt";
+      allb.addEventListener("click", function () { markGroupBestellt(g.items); });
+      acts.appendChild(gm); acts.appendChild(allb);
+      head.appendChild(title); head.appendChild(acts); box.appendChild(head);
+      g.items.forEach(function (v) {
+        var row = document.createElement("div"); row.className = "cg-item";
+        var info = document.createElement("div"); info.className = "cg-info";
+        info.innerHTML = '<span class="cg-menge">' + v.menge + "×</span> " + escapeHtml(v.bezeichnung) +
+          '<div class="cg-sub"><span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || "") + "</span>" +
+          (v.kommission ? "<span>Komm.: " + escapeHtml(v.kommission) + "</span>" : "") +
+          "<span>" + escapeHtml(v.melder) + "</span></div>" +
+          (v.kommentar ? '<div class="cg-cmt">💬 ' + escapeHtml(v.kommentar) + "</div>" : "");
+        row.appendChild(info);
+        var rowActs = document.createElement("div"); rowActs.className = "cg-item-acts";
+        var art = articleByNr(v.art_nr);
+        if (art && art.produktLink) {
+          var sh = document.createElement("button"); sh.className = "cg-mini"; sh.textContent = "🔗 Shop"; sh.title = "Produkt im Shop öffnen";
+          sh.addEventListener("click", function () { window.open(art.produktLink, "_blank"); });
+          rowActs.appendChild(sh);
+        }
+        var ok = document.createElement("button"); ok.className = "cg-mini ok"; ok.textContent = "✓ bestellt";
+        ok.addEventListener("click", function () { markBestellt(v.id); });
+        var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
+        dl.addEventListener("click", function () { deleteVormerkung(v.id); });
+        rowActs.appendChild(ok); rowActs.appendChild(dl);
+        row.appendChild(rowActs); box.appendChild(row);
+      });
+      cockpit.appendChild(box);
+    });
+    renderDone();
+  }
+  function renderDone() {
+    var done = vormCache.filter(function (v) { return v.status === "bestellt"; });
+    doneCount.textContent = "(" + done.length + ")";
+    doneList.innerHTML = "";
+    if (!done.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts bestellt."; doneList.appendChild(e); return; }
+    done.forEach(function (v) { doneList.appendChild(buildVItem(v)); });
+  }
+  function markBestellt(id) {
+    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler", true); return; }
+      refreshVormerkungen();
+    });
+  }
+  function markGroupBestellt(items) {
+    if (!items.length) return;
+    if (!window.confirm("Alle " + items.length + " Positionen als bestellt markieren?")) return;
+    var ids = items.map(function (v) { return v.id; });
+    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).in("id", ids).then(function (r) {
+      if (r.error) { toast("Fehler", true); return; }
+      toast(items.length + " als bestellt markiert"); refreshVormerkungen();
+    });
+  }
+  function gmailDraft(g) {
+    var recipient = "";
+    for (var i = 0; i < g.items.length; i++) { var a = articleByNr(g.items[i].art_nr); if (a && a.bestellMail) { recipient = a.bestellMail; break; } }
+    var subject = "Bestellung " + g.lieferant;
+    var lines = g.items.map(function (v) {
+      return "- " + v.menge + "x " + v.bezeichnung + (v.art_nr ? " (Art-Nr " + v.art_nr + ")" : "") +
+        (v.kommission ? " [Komm.: " + v.kommission + "]" : "") + (v.kommentar ? " – " + v.kommentar : "");
+    });
+    var body = "Hallo,\n\nbitte folgende Artikel bestellen:\n\n" + lines.join("\n") + "\n\nVielen Dank\n";
+    var url = "https://mail.google.com/mail/?view=cm&fs=1" +
+      (recipient ? "&to=" + encodeURIComponent(recipient) : "") +
+      "&su=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    window.open(url, "_blank");
   }
 
   // ===== Artikelauswahl / Formular =====
