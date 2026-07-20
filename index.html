@@ -142,14 +142,32 @@
   .cg-title { font-weight: 700; font-size: 0.92rem; }
   .cg-acts { display: flex; gap: 8px; }
   .cg-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; font-size: 0.78rem; }
-  .cg-item { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 10px 12px; border-top: 1px solid var(--card2); }
-  .cg-info { flex: 1; font-size: 0.9rem; line-height: 1.3; }
-  .cg-menge { font-weight: 700; }
-  .cg-sub { color: var(--muted); font-size: 0.76rem; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .cg-cmt { font-size: 0.8rem; margin-top: 3px; }
-  .cg-item-acts { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
-  .cg-mini { width: auto; padding: 7px 10px; font-size: 0.76rem; background: var(--card2); color: var(--text); }
+  /* Besteller-Bereich breiter auf dem PC */
+  #besteller .screen-inner { max-width: 1080px; }
+  /* Bestellliste: Spalten Menge | Artikel | Dringl. | Kommission | Melder | Aktionen */
+  .cg-item { display: grid; grid-template-columns: 44px minmax(140px,1fr) 88px 150px 110px 232px; gap: 6px 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--card2); font-size: 0.88rem; }
+  .cg-colhead { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); background: rgba(148,163,184,.10); border-top: none; }
+  .cg-colhead > div:last-child { text-align: right; }
+  .ci-menge { font-weight: 700; white-space: nowrap; }
+  .ci-bez { font-weight: 600; line-height: 1.25; }
+  .ci-extra { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .ci-komm, .ci-melder { color: var(--muted); font-size: 0.82rem; word-break: break-word; }
+  .ci-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .cg-mini { width: auto; padding: 6px 9px; font-size: 0.75rem; background: var(--card2); color: var(--text); white-space: nowrap; }
   .cg-mini.ok { background: var(--ok); color: #052e16; }
+  @media (max-width: 720px) {
+    .cg-item { grid-template-columns: auto 1fr; row-gap: 4px; }
+    .cg-colhead { display: none; }
+    .ci-menge { grid-row: 1; grid-column: 1; }
+    .ci-main  { grid-row: 1; grid-column: 2; }
+    .ci-dring { grid-row: 2; grid-column: 1 / -1; }
+    .ci-komm  { grid-row: 3; grid-column: 1 / -1; }
+    .ci-melder{ grid-row: 4; grid-column: 1 / -1; }
+    .ci-acts  { grid-row: 5; grid-column: 1 / -1; justify-content: flex-start; margin-top: 4px; }
+    .ci-komm:empty { display: none; }
+    .ci-komm:not(:empty)::before { content: "Kommission: "; }
+    .ci-melder::before { content: "Von: "; }
+  }
   .badge.done { background: #14311f; color: #86efac; border: 1px solid var(--ok); }
   .v-notiz { font-size: 0.82rem; margin-top: 6px; color: #fde68a; background: #3a2a12; border: 1px solid var(--warn); border-radius: 8px; padding: 5px 9px; }
   .v-notizbtn { margin-top: 8px; width: auto; padding: 6px 12px; font-size: 0.76rem; background: transparent; border: 1px solid var(--card2); color: var(--muted); }
@@ -702,32 +720,45 @@
       allb.addEventListener("click", function () { markGroupBestellt(g.items); });
       acts.appendChild(gm); acts.appendChild(allb);
       head.appendChild(title); head.appendChild(acts); box.appendChild(head);
+
+      var colhead = document.createElement("div"); colhead.className = "cg-item cg-colhead";
+      colhead.innerHTML = "<div>Menge</div><div>Artikel</div><div>Dringl.</div><div>Kommission</div><div>Melder</div><div>Aktionen</div>";
+      box.appendChild(colhead);
+
       g.items.forEach(function (v) {
         var row = document.createElement("div"); row.className = "cg-item";
-        var info = document.createElement("div"); info.className = "cg-info";
-        info.innerHTML = '<span class="cg-menge">' + v.menge + "×</span> " + escapeHtml(v.bezeichnung) +
-          '<div class="cg-sub"><span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || "") + "</span>" +
-          (v.kommission ? "<span>Komm.: " + escapeHtml(v.kommission) + "</span>" : "") +
-          "<span>" + escapeHtml(v.melder) + "</span></div>" +
-          (v.kommentar ? '<div class="cg-cmt">💬 ' + escapeHtml(v.kommentar) + "</div>" : "") +
-          (v.besteller_notiz ? '<div class="v-notiz" style="margin-top:6px;">📝 ' + escapeHtml(v.besteller_notiz) + "</div>" : "");
-        row.appendChild(info);
-        var rowActs = document.createElement("div"); rowActs.className = "cg-item-acts";
+
+        var cMenge = document.createElement("div"); cMenge.className = "ci-menge"; cMenge.textContent = v.menge + "×";
+
+        var cMain = document.createElement("div"); cMain.className = "ci-main";
+        var bez = document.createElement("div"); bez.className = "ci-bez"; bez.textContent = v.bezeichnung; cMain.appendChild(bez);
+        if (v.kommentar) { var cmt = document.createElement("div"); cmt.className = "ci-extra"; cmt.textContent = "💬 " + v.kommentar; cMain.appendChild(cmt); }
+        if (v.besteller_notiz) { var nz = document.createElement("div"); nz.className = "v-notiz"; nz.style.marginTop = "4px"; nz.textContent = "📝 " + v.besteller_notiz; cMain.appendChild(nz); }
+
+        var cDring = document.createElement("div"); cDring.className = "ci-dring";
+        cDring.innerHTML = '<span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || "") + "</span>";
+
+        var cKomm = document.createElement("div"); cKomm.className = "ci-komm"; cKomm.textContent = v.kommission || "";
+        var cMelder = document.createElement("div"); cMelder.className = "ci-melder"; cMelder.textContent = v.melder;
+
+        var cActs = document.createElement("div"); cActs.className = "ci-acts";
         var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
         noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
-        rowActs.appendChild(noteBtn);
+        cActs.appendChild(noteBtn);
         var art = articleByNr(v.art_nr);
         if (art && art.produktLink) {
           var sh = document.createElement("button"); sh.className = "cg-mini"; sh.textContent = "🔗 Shop"; sh.title = "Produkt im Shop öffnen";
           sh.addEventListener("click", function () { window.open(art.produktLink, "_blank"); });
-          rowActs.appendChild(sh);
+          cActs.appendChild(sh);
         }
         var ok = document.createElement("button"); ok.className = "cg-mini ok"; ok.textContent = "✓ bestellt";
         ok.addEventListener("click", function () { markBestellt(v.id); });
         var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
         dl.addEventListener("click", function () { deleteVormerkung(v.id); });
-        rowActs.appendChild(ok); rowActs.appendChild(dl);
-        row.appendChild(rowActs); box.appendChild(row);
+        cActs.appendChild(ok); cActs.appendChild(dl);
+
+        row.appendChild(cMenge); row.appendChild(cMain); row.appendChild(cDring); row.appendChild(cKomm); row.appendChild(cMelder); row.appendChild(cActs);
+        box.appendChild(row);
       });
       cockpit.appendChild(box);
     });
