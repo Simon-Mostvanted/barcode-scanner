@@ -83,7 +83,7 @@
   #zoomRange { -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl;
     width: 28px; height: 150px; margin: 0; accent-color: var(--accent); touch-action: none; }
 
-  #searchResults { list-style: none; margin: 8px 0 0; padding: 0; }
+  #searchResults { list-style: none; margin: 8px 0 0; padding: 0; max-height: 44vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   #searchResults li { background: var(--card); border: 1px solid var(--card2); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
   #searchResults li:active { background: var(--card2); }
   #searchResults .sr-name { font-weight: 600; font-size: 0.92rem; line-height: 1.25; }
@@ -491,22 +491,41 @@
     var h = (a.artNrHersteller || "").trim(); if (h && h !== "-") return h; return "";
   }
   function escapeHtml(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function countOcc(text, term) {
+    if (!term) return 0;
+    var n = 0, i = 0;
+    while ((i = text.indexOf(term, i)) !== -1) { n++; i += term.length; }
+    return n;
+  }
   function searchArticles(q) {
     q = (q || "").trim(); if (!q) return [];
-    var ql = q.toLowerCase(), qLoose = normLoose(q), scored = [];
-    for (var i = 0; i < ARTICLES.length; i++) {
-      var a = ARTICLES[i], score = 0, bez = (a.bezeichnung || "").toLowerCase();
-      var nrL = normLoose(a.artNrLieferant), nrH = normLoose(a.artNrHersteller);
-      var lief = (a.lieferant || "").toLowerCase(), herst = (a.hersteller || "").toLowerCase();
-      if (qLoose && (nrL === qLoose || nrH === qLoose)) score = 100;
-      else if (qLoose.length >= 3 && (nrL.indexOf(qLoose) >= 0 || nrH.indexOf(qLoose) >= 0)) score = 60;
-      else if (bez.indexOf(ql) >= 0) score = 40;
-      else if (lief.indexOf(ql) >= 0) score = 30;   // Lieferant
-      else if (herst.indexOf(ql) >= 0) score = 25;  // Hersteller
-      if (score > 0) scored.push({ a: a, score: score });
+    // 1) Exakte Artikelnummer? -> nur diesen eindeutigen Treffer, KEINE verwandten Ergebnisse
+    var qLoose = normLoose(q);
+    if (qLoose) {
+      var exact = ARTICLES.filter(function (a) {
+        return normLoose(a.artNrLieferant) === qLoose || normLoose(a.artNrHersteller) === qLoose;
+      });
+      if (exact.length) return exact;
     }
+    // 2) Kontext-/Mehrwortsuche über Text (Bezeichnung, Lieferant, Hersteller) — jedes Wort muss vorkommen
+    var terms = q.toLowerCase().split(/\s+/).filter(function (t) { return t.length >= 2; });
+    if (!terms.length) return [];
+    var scored = [];
+    for (var i = 0; i < ARTICLES.length; i++) {
+      var a = ARTICLES[i];
+      var bez = (a.bezeichnung || "").toLowerCase();
+      var other = ((a.lieferant || "") + " " + (a.hersteller || "")).toLowerCase();
+      var score = 0, all = true;
+      for (var t = 0; t < terms.length; t++) {
+        var cb = countOcc(bez, terms[t]), co = countOcc(other, terms[t]);
+        if (cb + co === 0) { all = false; break; }      // Wort fehlt -> Artikel passt nicht
+        score += cb * 2 + co;                            // Treffer im Namen zählen doppelt
+      }
+      if (all) scored.push({ a: a, score: score });
+    }
+    // meiste Treffer zuerst
     scored.sort(function (x, y) { return y.score - x.score; });
-    return scored.slice(0, 12).map(function (s) { return s.a; });
+    return scored.map(function (s) { return s.a; });
   }
 
   // ===== DOM =====
@@ -920,7 +939,9 @@
       var e = document.createElement("li"); e.className = "sr-empty"; e.textContent = "Kein Treffer — als freien Wunsch eintragen?";
       e.addEventListener("click", function () { selectFreitext(q.trim()); }); searchResults.appendChild(e); return;
     }
-    hits.forEach(function (a) {
+    var MAX = 500;
+    var shown = hits.length > MAX ? hits.slice(0, MAX) : hits;
+    shown.forEach(function (a) {
       var li = document.createElement("li");
       var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
       var mt = document.createElement("div"); mt.className = "sr-meta"; var nr = primaryNr(a);
@@ -929,6 +950,11 @@
       li.addEventListener("click", function () { selectArticle(a); });
       searchResults.appendChild(li);
     });
+    if (hits.length > MAX) {
+      var more = document.createElement("li"); more.className = "sr-empty"; more.style.cursor = "default";
+      more.textContent = "… und " + (hits.length - MAX) + " weitere Treffer. Bitte Suchbegriff ergänzen.";
+      searchResults.appendChild(more);
+    }
   }
 
   // ===== Kamera =====
