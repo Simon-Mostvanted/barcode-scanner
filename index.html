@@ -233,7 +233,7 @@
     <div id="cockpit"></div>
     <details class="testcodes" id="doneWrap" style="margin-top:14px;">
       <summary>Bereits bestellt <span id="doneCount"></span></summary>
-      <ul id="doneList" style="list-style:none; margin:10px 0 0; padding:0;"></ul>
+      <div id="doneList" style="margin:10px 0 0;"></div>
     </details>
 
     <h2 class="section">Verwaltung</h2>
@@ -768,8 +768,38 @@
     var done = vormCache.filter(function (v) { return v.status === "bestellt"; });
     doneCount.textContent = "(" + done.length + ")";
     doneList.innerHTML = "";
-    if (!done.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts bestellt."; doneList.appendChild(e); return; }
-    done.forEach(function (v) { doneList.appendChild(buildVItem(v, true)); });
+    if (!done.length) { var e = document.createElement("div"); e.className = "v-empty"; e.textContent = "Noch nichts bestellt."; doneList.appendChild(e); return; }
+
+    var colhead = document.createElement("div"); colhead.className = "cg-item cg-colhead";
+    colhead.innerHTML = "<div>Menge</div><div>Artikel</div><div>Bestellt am</div><div>Kommission</div><div>Melder</div><div>Aktionen</div>";
+    doneList.appendChild(colhead);
+
+    done.forEach(function (v) {
+      var row = document.createElement("div"); row.className = "cg-item";
+
+      var cMenge = document.createElement("div"); cMenge.className = "ci-menge"; cMenge.textContent = v.menge + "×";
+
+      var cMain = document.createElement("div"); cMain.className = "ci-main";
+      var bez = document.createElement("div"); bez.className = "ci-bez"; bez.textContent = v.bezeichnung; cMain.appendChild(bez);
+      if (v.kommentar) { var cmt = document.createElement("div"); cmt.className = "ci-extra"; cmt.textContent = "💬 " + v.kommentar; cMain.appendChild(cmt); }
+      if (v.besteller_notiz) { var nz = document.createElement("div"); nz.className = "v-notiz"; nz.style.marginTop = "4px"; nz.textContent = "📝 " + v.besteller_notiz; cMain.appendChild(nz); }
+
+      var cDate = document.createElement("div"); cDate.className = "ci-dring";
+      cDate.innerHTML = '<span class="badge done">✓ ' + (fmtDate(v.bestellt_am).split(" ")[0] || "") + "</span>";
+
+      var cKomm = document.createElement("div"); cKomm.className = "ci-komm"; cKomm.textContent = v.kommission || "";
+      var cMelder = document.createElement("div"); cMelder.className = "ci-melder"; cMelder.textContent = v.melder;
+
+      var cActs = document.createElement("div"); cActs.className = "ci-acts";
+      var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
+      noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+      var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
+      dl.addEventListener("click", function () { deleteVormerkung(v.id); });
+      cActs.appendChild(noteBtn); cActs.appendChild(dl);
+
+      row.appendChild(cMenge); row.appendChild(cMain); row.appendChild(cDate); row.appendChild(cKomm); row.appendChild(cMelder); row.appendChild(cActs);
+      doneList.appendChild(row);
+    });
   }
   function markBestellt(id) {
     db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", id).then(function (r) {
