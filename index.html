@@ -193,11 +193,6 @@
       <button class="gate-last" id="lastUserBtn"></button>
     </div>
     <div class="gate-tiles" id="nameTiles"></div>
-    <div class="gate-div">oder anderen Namen eingeben</div>
-    <div class="gate-entry">
-      <input id="gateName" type="text" autocomplete="off" placeholder="Dein Name…">
-      <button id="gateGo">Weiter</button>
-    </div>
     <div class="gate-foot">
       <button id="openBestellerBtn">🔒 Besteller-Bereich</button>
     </div>
@@ -212,30 +207,36 @@
       <button class="ghost" id="bestellerBack" style="flex:0 0 auto; width:auto; padding:8px 14px;">Zurück</button>
     </div>
 
-    <h2 class="section">Namen verwalten</h2>
-    <div class="gate-entry" style="margin-bottom:10px;">
-      <input id="newNameInput" type="text" autocomplete="off" placeholder="Neuen Namen hinzufügen…">
-      <button id="addNameBtn">Hinzufügen</button>
-    </div>
-    <ul id="adminList"></ul>
-
-    <h2 class="section">Artikelstamm (Excel-Import)</h2>
-    <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Eine neue Merger-Excel hochladen <b>ersetzt</b> den kompletten Stamm.</p>
-    <div class="gate-entry" style="margin-bottom:6px;">
-      <input id="importFile" type="file" accept=".xlsx,.xls" style="padding:9px; font-size:0.85rem;">
-      <button id="importBtn">Import</button>
-    </div>
-    <div class="status" id="importStatus" style="text-align:left; min-height:0;"></div>
-
-    <h2 class="section">Bestellungen — nach Lieferant</h2>
+    <!-- Bestellungen zuerst -->
     <div class="list-head" style="margin-top:0;">
-      <h2>Offen <span class="lh-count" id="adminVCount">(0)</span></h2>
+      <h2>Bestellungen — offen <span class="lh-count" id="adminVCount">(0)</span></h2>
       <button class="ghost" id="clearAllBtn">Alle löschen</button>
     </div>
     <div id="cockpit"></div>
     <details class="testcodes" id="doneWrap" style="margin-top:14px;">
       <summary>Bereits bestellt <span id="doneCount"></span></summary>
       <ul id="doneList" style="list-style:none; margin:10px 0 0; padding:0;"></ul>
+    </details>
+
+    <h2 class="section">Verwaltung</h2>
+
+    <details class="testcodes">
+      <summary>👤 Namen verwalten</summary>
+      <div class="gate-entry" style="margin:10px 0;">
+        <input id="newNameInput" type="text" autocomplete="off" placeholder="Neuen Namen hinzufügen…">
+        <button id="addNameBtn">Hinzufügen</button>
+      </div>
+      <ul id="adminList"></ul>
+    </details>
+
+    <details class="testcodes">
+      <summary>📄 Artikelstamm (Excel-Import)</summary>
+      <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Eine neue Merger-Excel hochladen <b>ersetzt</b> den kompletten Stamm.</p>
+      <div class="gate-entry" style="margin-bottom:6px;">
+        <input id="importFile" type="file" accept=".xlsx,.xls" style="padding:9px; font-size:0.85rem;">
+        <button id="importBtn">Import</button>
+      </div>
+      <div class="status" id="importStatus" style="text-align:left; min-height:0;"></div>
     </details>
   </div>
 </div>
@@ -497,7 +498,7 @@
   var startBtn = $("startBtn"), switchBtn = $("switchBtn"), refreshBtn = $("refreshBtn");
   var statusEl = $("status"), warningEl = $("warning"), cloudErrEl = $("cloudErr"), successFlash = $("successFlash"), toastEl = $("toast");
   var zoomWrap = $("zoomWrap"), zoomRange = $("zoomRange");
-  var gate = $("gate"), appEl = $("app"), nameTiles = $("nameTiles"), gateName = $("gateName"), gateGo = $("gateGo");
+  var gate = $("gate"), appEl = $("app"), nameTiles = $("nameTiles");
   var lastUserWrap = $("lastUserWrap"), lastUserBtn = $("lastUserBtn"), currentUserEl = $("currentUser"), changeNameBtn = $("changeNameBtn");
   var openBestellerBtn = $("openBestellerBtn"), besteller = $("besteller"), bestellerBack = $("bestellerBack");
   var newNameInput = $("newNameInput"), addNameBtn = $("addNameBtn"), adminList = $("adminList"), adminVCount = $("adminVCount"), clearAllBtn = $("clearAllBtn");
@@ -630,27 +631,23 @@
     nameTiles.innerHTML = '<div class="tiles-empty">Namen werden geladen…</div>';
     fetchNames().then(function () {
       nameTiles.innerHTML = "";
-      if (!namesCache.length) { var e = document.createElement("div"); e.className = "tiles-empty"; e.textContent = "Noch keine Namen — bitte unten eintragen."; nameTiles.appendChild(e); return; }
+      if (!namesCache.length) { var e = document.createElement("div"); e.className = "tiles-empty"; e.textContent = "Noch keine Namen hinterlegt. Bitte den Besteller bitten, Namen anzulegen (Besteller-Bereich)."; nameTiles.appendChild(e); return; }
       namesCache.forEach(function (n) {
         var b = document.createElement("button"); b.className = "tile"; b.textContent = n.name;
         b.addEventListener("click", function () { enterApp(n.name); });
         nameTiles.appendChild(b);
       });
     });
-    gateName.classList.remove("error");
   }
   function enterApp(name) {
     name = (name || "").trim();
-    if (!name) { gateError(); return; }
+    if (!name) return;
     currentMelder = name;
-    addName(name);
     try { localStorage.setItem(LS_MELDER, name); } catch (e) {}
     currentUserEl.textContent = name;
     gate.classList.remove("show"); besteller.classList.remove("show");
     appEl.style.display = "block";
-    gateName.value = "";
   }
-  function gateError() { gateName.classList.add("error"); gateName.classList.remove("shake"); void gateName.offsetWidth; gateName.classList.add("shake"); gateName.focus(); }
   function showGate() { appEl.style.display = "none"; besteller.classList.remove("show"); gate.classList.add("show"); renderGate(); }
 
   // ===== Besteller-Bereich =====
@@ -973,9 +970,6 @@
   }
 
   // ===== Events + Init =====
-  gateGo.addEventListener("click", function () { enterApp(gateName.value); });
-  gateName.addEventListener("keydown", function (e) { if (e.key === "Enter") enterApp(gateName.value); });
-  gateName.addEventListener("input", function () { gateName.classList.remove("error"); });
   lastUserBtn.addEventListener("click", function () { var last = ""; try { last = localStorage.getItem(LS_MELDER) || ""; } catch (e) {} enterApp(last); });
   changeNameBtn.addEventListener("click", showGate);
   openBestellerBtn.addEventListener("click", openBesteller);
