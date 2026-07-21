@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>MV Bestell-Scanner — Phase 4: Excel-Import</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #334155;
+    --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
+    --ok: #22c55e; --warn: #f59e0b; --err: #ef4444;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100%; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
+  header h1 { font-size: 1.15rem; margin: 8px 0 2px; }
+  header p { margin: 0 0 12px; color: var(--muted); font-size: 0.85rem; }
+  header .count { color: var(--accent); font-weight: 600; }
+
+  h2.section { font-size: 0.8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 20px 2px 8px; }
+
+  .banner { display:none; padding: 10px 14px; border-radius: 12px; font-size: 0.88rem; line-height: 1.4; margin-bottom: 12px; }
+  .banner.show { display:block; }
+  #warning { background: #7c2d12; border: 1px solid var(--warn); color: #fed7aa; }
+  #warning code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 5px; }
+  #cloudErr { background: #4a1616; border: 1px solid var(--err); color: #fecaca; }
+
+  label.fl { display: block; font-size: 0.78rem; color: var(--muted); margin: 0 0 4px 2px; }
+  input[type=text], input[type=number], input[type=search], textarea {
+    width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--card2);
+    background: var(--card); color: var(--text); font-size: 1rem; font-family: inherit; }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  textarea { resize: vertical; min-height: 44px; }
+
+  .userbar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card); border: 1px solid var(--card2); border-radius: 12px; padding: 10px 14px; margin-bottom: 8px; font-size: 0.9rem; }
+  .userbar b { color: var(--accent); }
+  .userbar button { flex: 0 0 auto; padding: 6px 12px; font-size: 0.8rem; }
+
+  /* Vollbild-Ansichten (Anmeldung / Besteller) */
+  .screen { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: none;
+    align-items: flex-start; justify-content: center; overflow-y: auto; padding: 34px 18px; }
+  .screen.show { display: flex; }
+  .screen-inner { width: 100%; max-width: 460px; }
+  .gate-center { text-align: center; }
+  .gate-logo { font-size: 2.6rem; }
+  .screen h1 { font-size: 1.3rem; margin: 6px 0 4px; }
+  .gate-sub { color: var(--muted); font-size: 0.9rem; line-height: 1.45; margin: 0 0 20px; }
+  .gate-last { width: 100%; margin-bottom: 16px; background: var(--card2); color: var(--text); }
+  .gate-tiles { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .gate-tiles .tile { flex: 1 1 calc(50% - 10px); min-width: 130px; padding: 16px 12px; font-size: 1rem;
+    background: var(--card); color: var(--text); border: 1px solid var(--card2); }
+  .gate-tiles .tile:active { background: var(--card2); }
+  .gate-tiles .tiles-empty { color: var(--muted); font-size: 0.82rem; padding: 10px; }
+  .gate-div { color: var(--muted); font-size: 0.78rem; margin: 18px 0 10px; text-align: center; }
+  .gate-entry { display: flex; gap: 10px; }
+  .gate-entry input { flex: 1; }
+  .gate-entry input.error { border-color: var(--err); background: #3a1616; }
+  .gate-entry button { flex: 0 0 auto; }
+  .gate-foot { text-align: center; margin-top: 26px; }
+  .gate-foot button { background: transparent; border: 1px solid var(--card2); color: var(--muted); font-size: 0.82rem; padding: 8px 14px; }
+  .shake { animation: shake .35s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-7px)} 40%,80%{transform:translateX(7px)} }
+
+  .reader-wrap { position: relative; }
+  #reader { width: 100%; border-radius: 16px; overflow: hidden; background: #000; border: 1px solid var(--card2); min-height: 60px; }
+  #reader video { width: 100% !important; display: block; border-radius: 16px; }
+
+  .controls { display: flex; gap: 10px; margin: 10px 0; }
+  button { flex: 1; font-size: 1rem; font-weight: 600; padding: 14px 12px; border-radius: 12px; border: none;
+    background: var(--accent); color: #0b1220; cursor: pointer; }
+  button.secondary { background: var(--card2); color: var(--text); }
+  button.ghost { background: transparent; border: 1px solid var(--card2); color: var(--muted); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:active { transform: translateY(1px); }
+
+  #zoomWrap { position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+    display: none; flex-direction: column; align-items: center; gap: 10px; padding: 14px 8px; z-index: 20;
+    background: rgba(15,23,42,.55); border-radius: 999px; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  #zoomWrap .zoom-label { font-size: 1.05rem; line-height: 1; }
+  #zoomRange { -webkit-appearance: slider-vertical; appearance: slider-vertical; writing-mode: vertical-lr; direction: rtl;
+    width: 28px; height: 150px; margin: 0; accent-color: var(--accent); touch-action: none; }
+
+  #searchResults { list-style: none; margin: 8px 0 0; padding: 0; max-height: 44vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #searchResults li { background: var(--card); border: 1px solid var(--card2); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; }
+  #searchResults li:active { background: var(--card2); }
+  #searchResults .sr-name { font-weight: 600; font-size: 0.92rem; line-height: 1.25; }
+  #searchResults .sr-meta { color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
+  #searchResults .sr-empty { color: var(--muted); text-align: center; border-style: dashed; cursor: pointer; }
+
+  .divider { text-align: center; color: var(--muted); font-size: 0.75rem; margin: 12px 0; }
+
+  #formPanel { display: none; background: var(--card); border: 1px solid var(--accent); border-radius: 16px; padding: 16px; margin-top: 10px; }
+  #formPanel.show { display: block; }
+  #formPanel.freitext { border-color: var(--warn); }
+  .fp-badge { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); }
+  #formPanel.freitext .fp-badge { color: var(--warn); }
+  .fp-name { font-size: 1.05rem; font-weight: 700; line-height: 1.3; margin: 6px 0; }
+  .fp-sub { font-size: 0.8rem; color: var(--muted); margin-bottom: 10px; word-break: break-word; }
+  .fp-hint { display:none; font-size: 0.85rem; line-height: 1.4; background: #3a2a12; border: 1px solid var(--warn); color: #fde68a;
+    border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; }
+  .field { margin-bottom: 12px; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; padding: 12px 6px; font-size: 0.9rem; background: var(--card2); color: var(--text); border: 1px solid transparent; }
+  .seg button[data-active="1"][data-level="normal"]  { background: #1f3a5f; border-color: var(--accent); color: var(--text); }
+  .seg button[data-active="1"][data-level="dringend"] { background: #4a3610; border-color: var(--warn); color: #fde68a; }
+  .seg button[data-active="1"][data-level="sofort"]   { background: #4a1616; border-color: var(--err); color: #fecaca; }
+  .fp-actions { display: flex; gap: 10px; margin-top: 6px; }
+  .fp-actions .save { background: var(--ok); color: #052e16; }
+
+  .list-head { display: flex; align-items: center; justify-content: space-between; margin: 20px 2px 8px; }
+  .list-head h2 { font-size: 0.95rem; margin: 0; }
+  .list-head .lh-count { color: var(--accent); }
+  .list-head button { flex: 0; padding: 6px 12px; font-size: 0.8rem; }
+  #vlist, #adminList { list-style: none; margin: 0; padding: 0; }
+  #vlist li { background: var(--card); border: 1px solid var(--card2); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  #vlist .v-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  #vlist .v-name { font-weight: 600; line-height: 1.3; }
+  #vlist .v-del { flex: 0 0 auto; background: transparent; border: none; color: var(--muted); font-size: 1.2rem; padding: 0 4px; cursor: pointer; width: auto; }
+  #vlist .v-meta { color: var(--muted); font-size: 0.76rem; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  #vlist .v-comment { font-size: 0.82rem; margin-top: 6px; color: var(--text); }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+  .badge.menge { background: var(--card2); color: var(--text); }
+  .badge.normal { background: #1f3a5f; color: #bfdbfe; }
+  .badge.dringend { background: #4a3610; color: #fde68a; }
+  .badge.sofort { background: #4a1616; color: #fecaca; }
+  .badge.freitext { background: #3a2a12; color: var(--warn); border: 1px solid var(--warn); }
+  #vlist .v-empty, #adminList .v-empty { color: var(--muted); text-align: center; border: 1px dashed var(--card2); border-radius: 12px; padding: 14px; }
+
+  /* Besteller: Namensverwaltung */
+  #adminList li { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--card2); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px; }
+  #adminList .a-name { flex: 1; font-weight: 600; }
+  #adminList .a-btn { flex: 0 0 auto; width: auto; padding: 6px 10px; font-size: 0.78rem; }
+
+  /* Besteller-Cockpit: Gruppen nach Lieferant */
+  .cg { border: 1px solid var(--card2); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  .cg-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; background: var(--card2); padding: 10px 12px; }
+  .cg-title { font-weight: 700; font-size: 0.92rem; }
+  .cg-acts { display: flex; gap: 8px; }
+  .cg-btn { width: auto; flex: 0 0 auto; padding: 8px 12px; font-size: 0.78rem; }
+  /* Besteller-Bereich breiter auf dem PC */
+  #besteller .screen-inner { max-width: 1080px; }
+  /* Bestellliste: Spalten Menge | Artikel | Dringl. | Kommission | Melder | Aktionen */
+  .cg-item { display: grid; grid-template-columns: 44px minmax(140px,1fr) 88px 150px 110px 232px; gap: 6px 10px; align-items: center; padding: 9px 12px; border-top: 1px solid var(--card2); font-size: 0.88rem; }
+  .cg-colhead { font-size: 0.7rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); background: rgba(148,163,184,.10); border-top: none; }
+  .cg-colhead > div:last-child { text-align: right; }
+  .ci-menge { font-weight: 700; white-space: nowrap; }
+  .ci-bez { font-weight: 600; line-height: 1.25; }
+  .ci-extra { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .ci-komm, .ci-melder { color: var(--muted); font-size: 0.82rem; word-break: break-word; }
+  .ci-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .cg-mini { width: auto; padding: 6px 9px; font-size: 0.75rem; background: var(--card2); color: var(--text); white-space: nowrap; }
+  .cg-mini.ok { background: var(--ok); color: #052e16; }
+  @media (max-width: 720px) {
+    .cg-item { grid-template-columns: auto 1fr; row-gap: 4px; }
+    .cg-colhead { display: none; }
+    .ci-menge { grid-row: 1; grid-column: 1; }
+    .ci-main  { grid-row: 1; grid-column: 2; }
+    .ci-dring { grid-row: 2; grid-column: 1 / -1; }
+    .ci-komm  { grid-row: 3; grid-column: 1 / -1; }
+    .ci-melder{ grid-row: 4; grid-column: 1 / -1; }
+    .ci-acts  { grid-row: 5; grid-column: 1 / -1; justify-content: flex-start; margin-top: 4px; }
+    .ci-komm:empty { display: none; }
+    .ci-komm:not(:empty)::before { content: "Kommission: "; }
+    .ci-melder::before { content: "Von: "; }
+  }
+  .badge.done { background: #14311f; color: #86efac; border: 1px solid var(--ok); }
+  .v-notiz { font-size: 0.82rem; margin-top: 6px; color: #fde68a; background: #3a2a12; border: 1px solid var(--warn); border-radius: 8px; padding: 5px 9px; }
+  .v-notizbtn { margin-top: 8px; width: auto; padding: 6px 12px; font-size: 0.76rem; background: transparent; border: 1px solid var(--card2); color: var(--muted); }
+
+  .testcodes { margin-top: 18px; border: 1px solid var(--card2); border-radius: 12px; padding: 4px 12px; }
+  .testcodes summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; padding: 8px 0; }
+  .tc-hint { font-size: 0.8rem; color: var(--muted); line-height: 1.45; margin: 4px 0 8px; }
+  #barcodes { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 0 12px; }
+  .bc { background: #fff; border-radius: 10px; padding: 10px 10px 6px; text-align: center; }
+  .bc svg { display: block; }
+  .bc .bc-label { color: #0b1220; font-size: 0.68rem; margin-top: 2px; max-width: 160px; line-height: 1.2; }
+
+  button.go { background: var(--ok); color: #052e16; }
+
+  #successFlash { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(34,197,94,.22); pointer-events: none; }
+  #successFlash.show { display: flex; animation: flashFade .85s ease-out forwards; }
+  #successFlash .check { width: 128px; height: 128px; border-radius: 50%; background: var(--ok); color: #052e16; display: flex; align-items: center; justify-content: center; font-size: 74px; font-weight: 700; box-shadow: 0 0 0 14px rgba(34,197,94,.22); }
+  @keyframes flashFade { 0%{opacity:0} 12%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+
+  .status { font-size: 0.8rem; color: var(--muted); text-align: center; min-height: 1.1rem; margin-top: 8px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: var(--ok); color: #052e16; font-weight: 600; padding: 12px 20px; border-radius: 999px; z-index: 90;
+    transition: opacity .2s, transform .2s; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.4); max-width: 90%; text-align:center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.err { background: var(--err); color: #fff; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+  footer b { color: var(--text); }
+</style>
+</head>
+<body>
+<div id="successFlash"><div class="check">✓</div></div>
+<div id="toast" class="toast"></div>
+
+<!-- Startseite / Anmeldung -->
+<div id="gate" class="screen">
+  <div class="screen-inner gate-center">
+    <div class="gate-logo">📷</div>
+    <h1>MV Bestell-Scanner</h1>
+    <p class="gate-sub">Wer bist du? Wähle deinen Namen — so wird jede Bestellung dir zugeordnet.</p>
+    <div id="lastUserWrap" style="display:none;">
+      <button class="gate-last" id="lastUserBtn"></button>
+    </div>
+    <div class="gate-tiles" id="nameTiles"></div>
+    <div class="gate-foot">
+      <button id="openBestellerBtn">🔒 Besteller-Bereich</button>
+    </div>
+  </div>
+</div>
+
+<!-- Besteller-Bereich -->
+<div id="besteller" class="screen">
+  <div class="screen-inner">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <h1 style="margin:0;">🔒 Besteller-Bereich</h1>
+      <button class="ghost" id="bestellerBack" style="flex:0 0 auto; width:auto; padding:8px 14px;">Zurück</button>
+    </div>
+
+    <!-- Bestellungen zuerst -->
+    <div class="list-head" style="margin-top:0;">
+      <h2>Bestellungen — offen <span class="lh-count" id="adminVCount">(0)</span></h2>
+      <button class="ghost" id="clearAllBtn">Alle löschen</button>
+    </div>
+    <div id="cockpit"></div>
+    <details class="testcodes" id="doneWrap" style="margin-top:14px;">
+      <summary>Bereits bestellt <span id="doneCount"></span></summary>
+      <div id="doneList" style="margin:10px 0 0;"></div>
+    </details>
+
+    <h2 class="section">Verwaltung</h2>
+
+    <details class="testcodes">
+      <summary>👤 Namen verwalten</summary>
+      <div class="gate-entry" style="margin:10px 0;">
+        <input id="newNameInput" type="text" autocomplete="off" placeholder="Neuen Namen hinzufügen…">
+        <button id="addNameBtn">Hinzufügen</button>
+      </div>
+      <ul id="adminList"></ul>
+    </details>
+
+    <details class="testcodes">
+      <summary>📄 Artikelstamm (Excel-Import)</summary>
+      <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Eine neue Merger-Excel hochladen <b>ersetzt</b> den kompletten Stamm.</p>
+      <div class="gate-entry" style="margin-bottom:6px;">
+        <input id="importFile" type="file" accept=".xlsx,.xls" style="padding:9px; font-size:0.85rem;">
+        <button id="importBtn">Import</button>
+      </div>
+      <div class="status" id="importStatus" style="text-align:left; min-height:0;"></div>
+    </details>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none;">
+  <header>
+    <h1>📷 MV Bestell-Scanner</h1>
+    <p>Phase 4 — Artikelstamm aus der Cloud. <span class="count" id="artCount">0</span> Artikel im Stamm.</p>
+  </header>
+
+  <div id="warning" class="banner">
+    <b>Kamera nicht verfügbar.</b> Die Kamera funktioniert im Browser nur über eine <b>HTTPS-Adresse</b>
+    (oder <code>localhost</code>). Öffne die Seite über deinen GitHub-Pages-Link. Suche und Vormerken gehen auch ohne Kamera.
+  </div>
+  <div id="cloudErr" class="banner"><b>Keine Verbindung zur Cloud.</b> Prüfe die Internetverbindung. Neu geladene Daten fehlen evtl.</div>
+
+  <div class="userbar">
+    <span>Angemeldet als <b id="currentUser">—</b></span>
+    <button class="ghost" id="changeNameBtn">Name ändern</button>
+  </div>
+
+  <h2 class="section">1 · Artikel wählen</h2>
+
+  <div class="reader-wrap">
+    <div id="reader"></div>
+    <div id="zoomWrap">
+      <span class="zoom-label">🔍</span>
+      <input id="zoomRange" type="range" min="1" max="3" step="0.1" value="1" aria-label="Zoom" orient="vertical">
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn">📷 Scan starten</button>
+    <button id="switchBtn" class="secondary" disabled>Kamera wechseln</button>
+  </div>
+
+  <div class="divider">— oder ohne Scannen: suchen —</div>
+  <input id="searchInput" type="search" autocomplete="off" autocapitalize="off" placeholder="Suche: Name, Nummer, Lieferant oder Hersteller…">
+  <ul id="searchResults"></ul>
+  <button id="freitextBtn" class="ghost" style="margin-top:10px;">✏️ Artikel nicht dabei? Freien Wunsch eintragen</button>
+
+  <div id="formPanel">
+    <div class="fp-badge" id="fpBadge">Ausgewählter Artikel</div>
+    <div class="fp-name" id="fpName"></div>
+    <div class="fp-sub" id="fpSub"></div>
+    <div class="fp-hint" id="fpHint"></div>
+
+    <div class="field" id="freitextField" style="display:none;">
+      <label class="fl" for="freitextName">Was soll bestellt werden?</label>
+      <input id="freitextName" type="text" placeholder="Bezeichnung des gewünschten Artikels">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label class="fl" for="mengeInput">Menge</label>
+        <input id="mengeInput" type="number" inputmode="numeric" min="1" step="1" value="1">
+      </div>
+      <div class="field" style="flex:2;">
+        <label class="fl">Dringlichkeit</label>
+        <div class="seg" id="dringSeg">
+          <button type="button" data-level="normal" data-active="1">Normal</button>
+          <button type="button" data-level="dringend" data-active="0">Dringend</button>
+          <button type="button" data-level="sofort" data-active="0">Sofort</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="fl" for="kommissionInput">Kommission (optional)</label>
+      <input id="kommissionInput" type="text" placeholder="z. B. Fahrzeug / Auftrag / Kunde">
+    </div>
+    <div class="field">
+      <label class="fl" for="kommentarInput">Kommentar (optional)</label>
+      <textarea id="kommentarInput" rows="2" placeholder="z. B. Farbe, Variante, Hinweis"></textarea>
+    </div>
+
+    <div class="fp-actions">
+      <button class="ghost" id="cancelBtn">Abbrechen</button>
+      <button class="save" id="saveBtn">Vormerken</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <div class="list-head">
+    <h2>Vorgemerkte Bestellungen <span class="lh-count" id="vCount">(0)</span></h2>
+    <button class="ghost" id="refreshBtn">⟳ Aktualisieren</button>
+  </div>
+  <ul id="vlist"></ul>
+
+  <details class="testcodes">
+    <summary>🧪 Test-Barcodes zum Abscannen</summary>
+    <p class="tc-hint">Echte Artikelnummern aus deinem Stamm als Code 128 — zum Testen vom Bildschirm abscannen. Der letzte ist absichtlich nicht im Stamm.</p>
+    <div id="barcodes"></div>
+  </details>
+
+  <footer>
+    <b>Phase 2b:</b> Die Liste liegt jetzt <b>zentral in der Cloud</b> — jede Vormerkung erscheint auf allen Geräten.
+    Namen werden zentral gepflegt (neue Namen einfach eintippen). Der Besteller-Bereich (🔒 auf der Startseite)
+    dient zum Verwalten der Namen und der Liste. Das Bestellen selbst folgt in Phase 3.
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ===== Cloud-Konfiguration =====
+  var SUPABASE_URL = "https://vmxucwenjpwrjpeqcuhc.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_bKycBdawzkSItE7G0YVamQ_ikkJMm0j";
+  var BESTELLER_PIN = "2017"; // Besteller-PIN (bei Bedarf hier ändern)
+  var MAIL_SIGNATUR = ""; // optionale feste Signatur unter der Mail (leer = Gmail soll eigene einfügen)
+  var db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var TEST_ARTICLES = [{"warengruppe":"Werkzeug","bezeichnung":"3M Rakel gold - 7 x 10 cm","artNrLieferant":"100742","artNrHersteller":"-","hersteller":"3M","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"5.89","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"NT-Cutter BD100 Klingen - 30° Breite: 9 mm","artNrLieferant":"101655","artNrHersteller":"-","hersteller":"NT-Cutter","lieferant":"4GM GmbH/Folienwelt.de","vpe":"5","ek":"0.33","lagerort":"Folien"},{"warengruppe":"Werkzeug","bezeichnung":"Orafol Rakel Squeegee grey plastic - 7 x 10 cm","artNrLieferant":"100744","artNrHersteller":"-","hersteller":"Orafol","lieferant":"4GM GmbH/Folienwelt.de","vpe":"1","ek":"1.09","lagerort":"Folien"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"10 Pcs 4mm Shank Single Flute Spiral End Mill Cutter Router Bits 22m","artNrLieferant":"","artNrHersteller":"-","hersteller":"","lieferant":"Ali express","vpe":"10","ek":"1.469","lagerort":"Tischlerei"},{"warengruppe":"Verbrauchsmaterial","bezeichnung":"Einschneidenfräser Ø 4mm, SL 22 mm","artNrLieferant":"","artNrHersteller":"","hersteller":"","lieferant":"Ali Express","vpe":"Stk.","ek":"1.51","lagerort":"Tischlerei"},{"warengruppe":"Anbauteile aussen","bezeichnung":"KERL 500 black (Zurröse für Airline)","artNrLieferant":"310285-0040","artNrHersteller":"","hersteller":"","lieferant":"allsafe GmbH & Co. KG","vpe":"40","ek":"4.625","lagerort":"Wst Wagen"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER. Protección frontal SPRINTER XW907 VS30 4MATIC","artNrLieferant":"PDMBS3A28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"540","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección caja cambio/transfer SPRINTER W907 VS30 4MATIC","artNrLieferant":"PDMBS3B28","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"322.5","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección depósito SPRINTER 4x4 W906-W907 VS30 4Matic","artNrLieferant":"PDMBS23D6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"315","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"MERCEDES SPRINTER W907 VS30 4MATICS, OWL BUMPER.Protección diferen. SPRINTER 4X4,2.2,3.0,2.04MATIC (NOT 5.5)","artNrLieferant":"PDMBS23DIF6","artNrHersteller":"-","hersteller":"","lieferant":"Almont4wd","vpe":"1","ek":"180","lagerort":"Halle Allgemein"},{"warengruppe":"Anbauteile aussen","bezeichnung":"Trittstufe elektrisch, Serie ETB, Transit v363","artNrLieferant":"101991","artNrHersteller":"","hersteller":"","lieferant":"alphadynamik","vpe":"1","ek":"982.1","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile aussen","bezeichnung":"ETB 0900 Sprinter 906/907","artNrLieferant":"102398","artNrHersteller":"-","hersteller":"","lieferant":"AlphaDynamik GmbH & Co. KG ","vpe":"1","ek":"816.2","lagerort":"Palettenregal"},{"warengruppe":"Anbauteile innen","bezeichnung":"Aluminium Nutprofil 3030 Schwarz","artNrLieferant":"3030-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"lfm","ek":"12.23","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Aluminium Schwarz","artNrLieferant":"3030L-ALU BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.99","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Linsenkopfschrauben ISO 7380 M6x12 schwarz","artNrLieferant":"ISO 7380-M6X12 BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.1","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M8","artNrLieferant":"8-4-M8.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Nutenstein Einschwenkbar 30-Profil M6","artNrLieferant":"8-4-M6.30","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.22","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkel 3030 Schwarz","artNrLieferant":"3030L-BLACK","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"1.52","lagerort":"Schweißerei"},{"warengruppe":"Anbauteile innen","bezeichnung":"Winkelabdeckkappe 3030L","artNrLieferant":"3030L-COVER","artNrHersteller":"","hersteller":"","lieferant":"Alux Profile Sp.z o.o.","vpe":"1","ek":"0.17","lagerort":"Schweißerei"},{"warengruppe":"Sanitär Geräte","bezeichnung":"12 V – 2 Arten von Verbindungen – motorisiertes Ventil 12 V Elektromagnetventil, normalerweise geschlossen, 2-Wege-Ventil, motorisiert, 1/2 3/4 1 1-1/4 1-1/2 2 Zoll (3/4 Zoll DN20)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"28.478","lagerort":"Sanitär"},{"warengruppe":"Sanitär Geräte","bezeichnung":"2 Modi - 2 wege motorkugelhahn 12v zonenventil 2 wege ventil elektrisch 1/2 3/4 1 1-1/4 1-1/2 2 zoll (1 zoll DN25)","artNrLieferant":"-","artNrHersteller":"","hersteller":"","lieferant":"Amazon","vpe":"1","ek":"33.76","lagerort":"Sanitär"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"2 Stück Kabelverschraubung für Anderson Stecker, 120A Hochstrom Schneller Kabelstecker, Zertifiziert Batterieanschluss Stecker, Schnellanschluss für Auto, Wohnwagen, Wohnmobil, Boot (grau)","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.09","lagerort":"Elektrolager"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"2 Stück Schwerlast Kugellagerscharniere 10cm, Bolatus Türscharnier Schwarz Edelstahl Scharniere Scharnier mit 8 Löchern für Massive Türen Gartentor Innen Außen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"2","ek":"4.62","lagerort":"Tischlerei"},{"warengruppe":"Möbelbauzubehör","bezeichnung":"20 Rundknöpfe inkl. Schrauben - Planenknöpfe - perfekt zum Befestigen von Anhängernetzen und Planen","artNrLieferant":"-","artNrHersteller":"-","hersteller":"","lieferant":"Amazon","vpe":"20","ek":"0.54","lagerort":"Tischlerei"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"AUPROTEC KFZ Kabel 2x4,0 mm² 50m flach FLRYY I Flachkabel Schlauchleitung/Fahrzeugleitung Verschiedene Anwendungen I 2 poliges Kabel für Anhänger geeignet","artNrLieferant":"-","artNrHersteller":"57993478386682","hersteller":"","lieferant":"Amazon","vpe":"m","ek":"2.305","lagerort":"Elektrolager"},{"warengruppe":"Sanitär installationsmaterial","bezeichnung":"VIOKS Panzerschlauch 1/2 Zoll (19,3mm) ÜM x M10 30 cm & Wasserschlauch Flexibel Trinkwasserschlauch Flexschlauch fuer WC Spülkasten Waschbecken Küchenarmatur Bad & Wasserhahn Anschlussschlauch","artNrLieferant":"-","artNrHersteller":"B07RZS283R","hersteller":"","lieferant":"Amazon","vpe":"","ek":"7.98","lagerort":"Sanitär"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"Hülsenmuttern für Bullauge mit Senkkopf und Innensechskant (ISK) - Antrieb - M4x12 - (10 Stück) - aus rostfreiem Edelstahl A1 (VA) - NIRO - SC9062 | SC-Normteile®","artNrLieferant":"-","artNrHersteller":"FBA-9062-1-040-012-10","hersteller":"SC Normteile","lieferant":"amazon","vpe":"1","ek":"1.289","lagerort":"Tischlerei"},{"warengruppe":"Befestigungsmaterial Metall","bezeichnung":"GESIPA G-Sealed Blindnietmutter Stahl - Flachrundkopf","artNrLieferant":"GES1758509","artNrHersteller":"1758509","hersteller":"","lieferant":"Bauportal24","vpe":"100","ek":"0.32","lagerort":"WST Wagen"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob Verschlussstopfen 50 St.","artNrLieferant":"4024092137600","artNrHersteller":"WJ-DM 20-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.17","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Jacob WJ-DM 16-VPA/SW Verschlussstopfen 50 St.","artNrLieferant":"4024092156311","artNrHersteller":"WJ-DM 16-VPA/SW","hersteller":"","lieferant":"Conrad","vpe":"50","ek":"0.15","lagerort":"Elektrolager"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Icotek KEL-DPZ 40/8 Kabeldurchführungsplatte Klemm-Ø (max.) 10.2 mm Polyamid, Elastomer Grau 1 St.","artNrLieferant":"418836 - 62","artNrHersteller":"43741","hersteller":"","lieferant":"Conrad","vpe":"1","ek":"19.32","lagerort":"Elektrolager"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin DashCam Tandem","artNrLieferant":"119196","artNrHersteller":"010-02259-01","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"261","lagerort":"Palettenregal"},{"warengruppe":"Elektrik/Elektronik installationsmaterial","bezeichnung":"Garmin Parking Mode Kabel","artNrLieferant":"108171","artNrHersteller":"010-12530-03","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"22","lagerort":"Palettenregal"},{"warengruppe":"Zubehör für Kunden","bezeichnung":"Garmin Tread XL Overland Edition","artNrLieferant":"140206","artNrHersteller":"010-02509-10","hersteller":"","lieferant":"eno telecom","vpe":"1","ek":"1105","lagerort":"Palettenregal"}];
+
+  var ARTICLES = TEST_ARTICLES; // wird beim Start durch Cloud-Artikel ersetzt, falls vorhanden
+
+  // ===== Artikel-Index =====
+  function norm(s) { return (s == null ? "" : String(s)).trim().toUpperCase().replace(/\s+/g, " "); }
+  function normLoose(s) { return norm(s).replace(/\s+/g, ""); }
+  var idx = Object.create(null);
+  function addToIndex(code, article, field) {
+    if (code == null) return;
+    var c = String(code).trim();
+    if (c === "" || c === "-") return;
+    var n = norm(c); if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
+    var nl = normLoose(c); if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
+  }
+  function buildIndex() { idx = Object.create(null); ARTICLES.forEach(function (a) { addToIndex(a.artNrLieferant, a, "Lieferanten-Nr"); addToIndex(a.artNrHersteller, a, "Hersteller-Nr"); }); }
+
+  // ===== Artikelstamm aus Cloud laden / Import =====
+  function mapCloudArticle(r) {
+    return {
+      bezeichnung: r.bezeichnung, artNrLieferant: r.art_nr_lieferant, artNrHersteller: r.art_nr_hersteller,
+      lieferant: r.lieferant, hersteller: r.hersteller, warengruppe: r.warengruppe, lagerort: r.lagerort,
+      vpe: r.vpe, ek: r.ek, bestellweg: r.bestellweg, bestellMail: r.bestell_mail, produktLink: r.produktlink
+    };
+  }
+  function useArticles(list, isTest) {
+    ARTICLES = list; buildIndex();
+    var n = ARTICLES.length;
+    artCountEl.textContent = n + (isTest ? " (Test)" : "");
+    if (artikelCount) artikelCount.textContent = isTest ? (n + " Test-Artikel (noch kein Import)") : (n + " Artikel");
+  }
+  function loadArticles() {
+    // Supabase liefert je Abfrage max. 1000 Zeilen → blockweise ALLE laden
+    var all = [];
+    function page(from) {
+      return db.from("artikel").select("*").order("id", { ascending: true }).range(from, from + 999).then(function (r) {
+        if (r.error) throw r.error;
+        all = all.concat(r.data || []);
+        if (r.data && r.data.length === 1000) return page(from + 1000);
+      });
+    }
+    return page(0).then(function () {
+      if (all.length) useArticles(all.map(mapCloudArticle), false);
+      else useArticles(TEST_ARTICLES, true);
+    }).catch(function (e) { console.warn("artikel laden", e); useArticles(TEST_ARTICLES, true); });
+  }
+  function normHeader(s) { return String(s == null ? "" : s).toLowerCase().replace(/[\s.\-_()]/g, ""); }
+  function cleanCell(v) { return (v == null ? "" : String(v)).replace(/\s+/g, " ").trim(); }
+  function mapRow(row) {
+    var normed = {};
+    Object.keys(row).forEach(function (k) { normed[normHeader(k)] = row[k]; });
+    function g() { for (var i = 0; i < arguments.length; i++) { var key = normHeader(arguments[i]); if (key in normed) return cleanCell(normed[key]); } return ""; }
+    return {
+      art_nr_lieferant: g("Art.nr.Lieferant", "Artnr Lieferant", "Art-Nr Lieferant", "Lieferanten-Nr"),
+      art_nr_hersteller: g("Art.nr.Hersteller", "Artnr Hersteller", "Hersteller-Nr"),
+      bezeichnung: g("Bezeichnung"),
+      lieferant: g("Lieferant"),
+      hersteller: g("Hersteller"),
+      warengruppe: g("Warengruppe"),
+      lagerort: g("Lagerort"),
+      lagerplatz: g("Lagerplatz"),
+      mass: g("Maß", "Mass"),
+      farbe: g("Farbe"),
+      vpe: g("VPE"),
+      ek: g("EK (exkl.)", "EK"),
+      vk: g("VK (inkl.)", "VK"),
+      bestellweg: g("Bestellweg"),
+      bestell_mail: g("Bestell-Mail", "Bestellmail", "Bestell Mail"),
+      produktlink: g("Produktlink", "Produkt-Link", "Shop-Link", "Shoplink")
+    };
+  }
+  function parseExcel(buf) {
+    var wb = XLSX.read(buf, { type: "array" });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    var rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+    var out = [];
+    rows.forEach(function (row) {
+      var m = mapRow(row);
+      if (!m.bezeichnung && !m.art_nr_lieferant && !m.art_nr_hersteller) return; // leere Zeile
+      out.push(m);
+    });
+    return out;
+  }
+  function doImport() {
+    var f = importFile.files && importFile.files[0];
+    if (!f) { toast("Bitte zuerst eine Excel-Datei wählen", true); return; }
+    if (typeof XLSX === "undefined") { importStatus.textContent = "Excel-Bibliothek nicht geladen (Internet?)."; return; }
+    importBtn.disabled = true; importStatus.textContent = "Lese Datei …";
+    f.arrayBuffer().then(function (buf) {
+      var parsed;
+      try { parsed = parseExcel(buf); } catch (e) { importStatus.textContent = "Datei konnte nicht gelesen werden: " + e.message; importBtn.disabled = false; return; }
+      if (!parsed.length) { importStatus.textContent = "Keine Artikel in der Datei gefunden."; importBtn.disabled = false; return; }
+      importStatus.textContent = parsed.length + " Artikel gefunden. Alten Stamm ersetzen …";
+      db.from("artikel").delete().not("id", "is", null).then(function (del) {
+        if (del.error) { importStatus.textContent = "Fehler beim Leeren: " + del.error.message; importBtn.disabled = false; return; }
+        var CHUNK = 400, done = 0;
+        function next() {
+          if (done >= parsed.length) {
+            loadArticles().then(function () { importStatus.textContent = "✓ " + done + " Artikel importiert."; toast(done + " Artikel importiert"); importBtn.disabled = false; });
+            return;
+          }
+          var chunk = parsed.slice(done, done + CHUNK);
+          db.from("artikel").insert(chunk).then(function (ins) {
+            if (ins.error) { importStatus.textContent = "Fehler beim Speichern: " + ins.error.message; importBtn.disabled = false; return; }
+            done += chunk.length; importStatus.textContent = "Speichere … " + done + "/" + parsed.length;
+            next();
+          });
+        }
+        next();
+      });
+    });
+  }
+  function lookup(code) { var n = norm(code); if (idx[n]) return idx[n]; var nl = normLoose(code); return idx[nl] || null; }
+  function primaryNr(a) {
+    var l = (a.artNrLieferant || "").trim(); if (l && l !== "-") return l;
+    var h = (a.artNrHersteller || "").trim(); if (h && h !== "-") return h; return "";
+  }
+  function escapeHtml(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function countOcc(text, term) {
+    if (!term) return 0;
+    var n = 0, i = 0;
+    while ((i = text.indexOf(term, i)) !== -1) { n++; i += term.length; }
+    return n;
+  }
+  function searchArticles(q) {
+    q = (q || "").trim(); if (!q) return [];
+    // 1) Exakte Artikelnummer? -> nur diesen eindeutigen Treffer, KEINE verwandten Ergebnisse
+    var qLoose = normLoose(q);
+    if (qLoose) {
+      var exact = ARTICLES.filter(function (a) {
+        return normLoose(a.artNrLieferant) === qLoose || normLoose(a.artNrHersteller) === qLoose;
+      });
+      if (exact.length) return exact;
+    }
+    // 2) Kontext-/Mehrwortsuche über Text (Bezeichnung, Lieferant, Hersteller) — jedes Wort muss vorkommen
+    var terms = q.toLowerCase().split(/\s+/).filter(function (t) { return t.length >= 2; });
+    if (!terms.length) return [];
+    var scored = [];
+    for (var i = 0; i < ARTICLES.length; i++) {
+      var a = ARTICLES[i];
+      var bez = (a.bezeichnung || "").toLowerCase();
+      var other = ((a.lieferant || "") + " " + (a.hersteller || "")).toLowerCase();
+      var score = 0, all = true;
+      for (var t = 0; t < terms.length; t++) {
+        var cb = countOcc(bez, terms[t]), co = countOcc(other, terms[t]);
+        if (cb + co === 0) { all = false; break; }      // Wort fehlt -> Artikel passt nicht
+        score += cb * 2 + co;                            // Treffer im Namen zählen doppelt
+      }
+      if (all) scored.push({ a: a, score: score });
+    }
+    // meiste Treffer zuerst
+    scored.sort(function (x, y) { return y.score - x.score; });
+    return scored.map(function (s) { return s.a; });
+  }
+
+  // ===== DOM =====
+  var FMT = Html5QrcodeSupportedFormats;
+  var formats = [FMT.EAN_13, FMT.EAN_8, FMT.UPC_A, FMT.UPC_E, FMT.CODE_128, FMT.CODE_39, FMT.CODE_93, FMT.ITF, FMT.CODABAR, FMT.QR_CODE, FMT.DATA_MATRIX];
+  var $ = function (id) { return document.getElementById(id); };
+  var startBtn = $("startBtn"), switchBtn = $("switchBtn"), refreshBtn = $("refreshBtn");
+  var statusEl = $("status"), warningEl = $("warning"), cloudErrEl = $("cloudErr"), successFlash = $("successFlash"), toastEl = $("toast");
+  var zoomWrap = $("zoomWrap"), zoomRange = $("zoomRange");
+  var gate = $("gate"), appEl = $("app"), nameTiles = $("nameTiles");
+  var lastUserWrap = $("lastUserWrap"), lastUserBtn = $("lastUserBtn"), currentUserEl = $("currentUser"), changeNameBtn = $("changeNameBtn");
+  var openBestellerBtn = $("openBestellerBtn"), besteller = $("besteller"), bestellerBack = $("bestellerBack");
+  var newNameInput = $("newNameInput"), addNameBtn = $("addNameBtn"), adminList = $("adminList"), adminVCount = $("adminVCount"), clearAllBtn = $("clearAllBtn");
+  var cockpit = $("cockpit"), doneList = $("doneList"), doneCount = $("doneCount");
+  var importFile = $("importFile"), importBtn = $("importBtn"), importStatus = $("importStatus"), artikelCount = $("artikelCount");
+  var searchInput = $("searchInput"), searchResults = $("searchResults"), freitextBtn = $("freitextBtn");
+  var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub"), fpHint = $("fpHint");
+  var freitextField = $("freitextField"), freitextName = $("freitextName");
+  var mengeInput = $("mengeInput"), dringSeg = $("dringSeg"), kommissionInput = $("kommissionInput"), kommentarInput = $("kommentarInput");
+  var cancelBtn = $("cancelBtn"), saveBtn = $("saveBtn"), vlist = $("vlist"), vCount = $("vCount"), barcodesEl = $("barcodes"), artCountEl = $("artCount");
+
+  var scanner = null, running = false, stopping = false, cameras = [], camIndex = 0, lastValue = "", lastAt = 0, audioCtx = null;
+  var currentArticle = null, currentFreitext = false, dringlichkeit = "normal", currentMelder = "";
+  var vormCache = [], namesCache = [];
+  var LS_MELDER = "mv_melder";
+
+  function setStatus(m) { statusEl.textContent = m || ""; }
+  function isSecure() { return window.isSecureContext === true || location.hostname === "localhost" || location.hostname === "127.0.0.1"; }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function fmtDate(iso) { if (!iso) return ""; var d = new Date(iso); if (isNaN(d.getTime())) return ""; return pad(d.getDate()) + "." + pad(d.getMonth() + 1) + ". " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function beep() { try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); var o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = "square"; o.frequency.value = 880; g.gain.value = 0.05; o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.12); } catch (e) {} }
+  function flashSuccess() { successFlash.classList.remove("show"); void successFlash.offsetWidth; successFlash.classList.add("show"); setTimeout(function () { successFlash.classList.remove("show"); }, 900); }
+  var toastTimer = null;
+  function toast(msg, isErr) { toastEl.textContent = msg; toastEl.className = "toast show" + (isErr ? " err" : ""); if (toastTimer) clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 2200); }
+  function showCloudErr(on) { cloudErrEl.classList.toggle("show", !!on); }
+
+  // ===== Cloud: Vormerkungen =====
+  function fetchVormerkungen() {
+    return db.from("vormerkungen").select("*").order("created_at", { ascending: false }).then(function (r) {
+      if (r.error) { console.error("fetchVormerkungen", r.error); showCloudErr(true); return vormCache; }
+      showCloudErr(false); vormCache = r.data || []; return vormCache;
+    });
+  }
+  function refreshVormerkungen() { return fetchVormerkungen().then(function () { renderVormerkungen(); if (besteller.classList.contains("show")) renderCockpit(); }); }
+
+  var DRING_LABEL = { normal: "Normal", dringend: "Dringend", sofort: "Sofort" };
+  function buildVItem(v, forAdmin) {
+    var li = document.createElement("li");
+    var top = document.createElement("div"); top.className = "v-top";
+    var name = document.createElement("div"); name.className = "v-name"; name.textContent = v.bezeichnung;
+    var del = document.createElement("button"); del.className = "v-del"; del.innerHTML = "✕"; del.title = "Löschen";
+    del.addEventListener("click", function () { deleteVormerkung(v.id); });
+    top.appendChild(name); top.appendChild(del); li.appendChild(top);
+    var meta = document.createElement("div"); meta.className = "v-meta";
+    meta.innerHTML =
+      '<span class="badge menge">' + v.menge + "×</span>" +
+      (v.status === "bestellt" ? '<span class="badge done">✓ bestellt ' + fmtDate(v.bestellt_am) + "</span>" : "") +
+      '<span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || escapeHtml(v.dringlichkeit)) + "</span>" +
+      (v.is_freitext ? '<span class="badge freitext">Freitext</span>' : "") +
+      "<span>" + escapeHtml(v.lieferant || (v.is_freitext ? "—" : "")) + "</span>" +
+      (v.kommission ? "<span>Komm.: " + escapeHtml(v.kommission) + "</span>" : "") +
+      "<span>" + escapeHtml(v.melder) + " · " + fmtDate(v.created_at) + "</span>";
+    li.appendChild(meta);
+    if (v.kommentar) { var c = document.createElement("div"); c.className = "v-comment"; c.textContent = "💬 " + v.kommentar; li.appendChild(c); }
+    if (v.besteller_notiz) { var n = document.createElement("div"); n.className = "v-notiz"; n.textContent = "📝 " + v.besteller_notiz; li.appendChild(n); }
+    if (forAdmin) {
+      var nb = document.createElement("button"); nb.className = "v-notizbtn";
+      nb.textContent = v.besteller_notiz ? "📝 Notiz bearbeiten" : "📝 Notiz hinzufügen";
+      nb.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+      li.appendChild(nb);
+    }
+    return li;
+  }
+  function editNotiz(id, current) {
+    var nn = window.prompt("Notiz für den Besteller (z. B. Liefertermin 25.07. oder verzögert bis KW 32):", current || "");
+    if (nn == null) return;
+    db.from("vormerkungen").update({ besteller_notiz: nn.trim() }).eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler beim Speichern der Notiz", true); return; }
+      refreshVormerkungen();
+    });
+  }
+  function renderVormerkungen() {
+    vCount.textContent = "(" + vormCache.length + ")";
+    vlist.innerHTML = "";
+    if (!vormCache.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts vorgemerkt."; vlist.appendChild(e); return; }
+    vormCache.forEach(function (v) { vlist.appendChild(buildVItem(v)); });
+  }
+  function deleteVormerkung(id) {
+    return db.from("vormerkungen").delete().eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler beim Löschen", true); return; }
+      refreshVormerkungen();
+    });
+  }
+  function clearAllVormerkungen() {
+    if (!vormCache.length) return;
+    if (!window.confirm("Wirklich ALLE Vormerkungen löschen?")) return;
+    db.from("vormerkungen").delete().not("id", "is", null).then(function (r) {
+      if (r.error) { toast("Fehler beim Löschen", true); return; }
+      toast("Alle Vormerkungen gelöscht"); refreshVormerkungen();
+    });
+  }
+
+  // ===== Cloud: Namen =====
+  function fetchNames() {
+    return db.from("namen").select("id,name").order("name").then(function (r) {
+      if (r.error) { console.error("fetchNames", r.error); showCloudErr(true); return namesCache; }
+      showCloudErr(false); namesCache = r.data || []; return namesCache;
+    });
+  }
+  function addName(name) {
+    name = (name || "").trim();
+    if (!name) return Promise.resolve(false);
+    if (namesCache.some(function (n) { return n.name.toLowerCase() === name.toLowerCase(); })) return Promise.resolve(true);
+    return db.from("namen").insert([{ name: name }]).then(function (r) {
+      if (r.error) { if (r.error.code === "23505") return true; console.error("addName", r.error); toast("Name konnte nicht gespeichert werden", true); return false; }
+      return fetchNames().then(function () { return true; });
+    });
+  }
+  function renameName(id, oldName) {
+    var nn = window.prompt("Neuer Name für „" + oldName + "\":", oldName);
+    if (nn == null) return; nn = nn.trim(); if (!nn || nn === oldName) return;
+    db.from("namen").update({ name: nn }).eq("id", id).then(function (r) {
+      if (r.error) { toast(r.error.code === "23505" ? "Name existiert schon" : "Fehler beim Umbenennen", true); return; }
+      fetchNames().then(renderAdminNames);
+    });
+  }
+  function deleteName(id, name) {
+    if (!window.confirm("Namen „" + name + "\" wirklich löschen?")) return;
+    db.from("namen").delete().eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler beim Löschen", true); return; }
+      fetchNames().then(renderAdminNames);
+    });
+  }
+
+  // ===== Anmeldung / Gate =====
+  function renderGate() {
+    var last = ""; try { last = localStorage.getItem(LS_MELDER) || ""; } catch (e) {}
+    if (last) { lastUserBtn.textContent = "↩ Weiter als " + last; lastUserWrap.style.display = "block"; }
+    else { lastUserWrap.style.display = "none"; }
+    nameTiles.innerHTML = '<div class="tiles-empty">Namen werden geladen…</div>';
+    fetchNames().then(function () {
+      nameTiles.innerHTML = "";
+      if (!namesCache.length) { var e = document.createElement("div"); e.className = "tiles-empty"; e.textContent = "Noch keine Namen hinterlegt. Bitte den Besteller bitten, Namen anzulegen (Besteller-Bereich)."; nameTiles.appendChild(e); return; }
+      namesCache.forEach(function (n) {
+        var b = document.createElement("button"); b.className = "tile"; b.textContent = n.name;
+        b.addEventListener("click", function () { enterApp(n.name); });
+        nameTiles.appendChild(b);
+      });
+    });
+  }
+  function enterApp(name) {
+    name = (name || "").trim();
+    if (!name) return;
+    currentMelder = name;
+    try { localStorage.setItem(LS_MELDER, name); } catch (e) {}
+    currentUserEl.textContent = name;
+    gate.classList.remove("show"); besteller.classList.remove("show");
+    appEl.style.display = "block";
+  }
+  function showGate() { appEl.style.display = "none"; besteller.classList.remove("show"); gate.classList.add("show"); renderGate(); }
+
+  // ===== Besteller-Bereich =====
+  function openBesteller() {
+    var pin = window.prompt("Besteller-PIN eingeben:");
+    if (pin == null) return;
+    if (pin !== BESTELLER_PIN) { toast("Falscher PIN", true); return; }
+    gate.classList.remove("show"); appEl.style.display = "none"; besteller.classList.add("show");
+    fetchNames().then(renderAdminNames);
+    refreshVormerkungen();
+  }
+  function renderAdminNames() {
+    adminList.innerHTML = "";
+    if (!namesCache.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch keine Namen."; adminList.appendChild(e); return; }
+    namesCache.forEach(function (n) {
+      var li = document.createElement("li");
+      var nm = document.createElement("span"); nm.className = "a-name"; nm.textContent = n.name;
+      var ren = document.createElement("button"); ren.className = "a-btn secondary"; ren.textContent = "Umbenennen";
+      ren.addEventListener("click", function () { renameName(n.id, n.name); });
+      var del = document.createElement("button"); del.className = "a-btn ghost"; del.textContent = "Löschen";
+      del.addEventListener("click", function () { deleteName(n.id, n.name); });
+      li.appendChild(nm); li.appendChild(ren); li.appendChild(del);
+      adminList.appendChild(li);
+    });
+  }
+
+  // ===== Besteller-Cockpit (Phase 3a) =====
+  function articleByNr(nr) { var h = nr ? lookup(nr) : null; return h ? h.article : null; }
+  function groupByLieferant(items) {
+    var groups = {}, order = [];
+    items.forEach(function (v) {
+      var key = (v.lieferant && v.lieferant.trim()) ? v.lieferant.trim() : (v.is_freitext ? "Freitext / ohne Lieferant" : "Ohne Lieferant");
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(v);
+    });
+    order.sort(function (a, b) { return a.localeCompare(b, "de"); });
+    return order.map(function (k) { return { lieferant: k, items: groups[k] }; });
+  }
+  function renderCockpit() {
+    var open = vormCache.filter(function (v) { return v.status !== "bestellt"; });
+    adminVCount.textContent = "(" + open.length + ")";
+    cockpit.innerHTML = "";
+    if (!open.length) { var e = document.createElement("div"); e.className = "v-empty"; e.textContent = "Keine offenen Vormerkungen."; cockpit.appendChild(e); }
+    else groupByLieferant(open).forEach(function (g) {
+      var box = document.createElement("div"); box.className = "cg";
+      var head = document.createElement("div"); head.className = "cg-head";
+      var title = document.createElement("div"); title.className = "cg-title"; title.textContent = g.lieferant + " (" + g.items.length + ")";
+      var acts = document.createElement("div"); acts.className = "cg-acts";
+      var gm = document.createElement("button"); gm.className = "cg-btn"; gm.textContent = "📧 Gmail-Entwurf";
+      gm.addEventListener("click", function () { gmailDraft(g); });
+      var allb = document.createElement("button"); allb.className = "cg-btn ghost"; allb.textContent = "Alle bestellt";
+      allb.addEventListener("click", function () { markGroupBestellt(g.items); });
+      acts.appendChild(gm); acts.appendChild(allb);
+      head.appendChild(title); head.appendChild(acts); box.appendChild(head);
+
+      var colhead = document.createElement("div"); colhead.className = "cg-item cg-colhead";
+      colhead.innerHTML = "<div>Menge</div><div>Artikel</div><div>Dringl.</div><div>Kommission</div><div>Melder</div><div>Aktionen</div>";
+      box.appendChild(colhead);
+
+      g.items.forEach(function (v) {
+        var row = document.createElement("div"); row.className = "cg-item";
+
+        var cMenge = document.createElement("div"); cMenge.className = "ci-menge"; cMenge.textContent = v.menge + "×";
+
+        var cMain = document.createElement("div"); cMain.className = "ci-main";
+        var bez = document.createElement("div"); bez.className = "ci-bez"; bez.textContent = v.bezeichnung; cMain.appendChild(bez);
+        if (v.kommentar) { var cmt = document.createElement("div"); cmt.className = "ci-extra"; cmt.textContent = "💬 " + v.kommentar; cMain.appendChild(cmt); }
+        if (v.besteller_notiz) { var nz = document.createElement("div"); nz.className = "v-notiz"; nz.style.marginTop = "4px"; nz.textContent = "📝 " + v.besteller_notiz; cMain.appendChild(nz); }
+
+        var cDring = document.createElement("div"); cDring.className = "ci-dring";
+        cDring.innerHTML = '<span class="badge ' + escapeHtml(v.dringlichkeit) + '">' + (DRING_LABEL[v.dringlichkeit] || "") + "</span>";
+
+        var cKomm = document.createElement("div"); cKomm.className = "ci-komm"; cKomm.textContent = v.kommission || "";
+        var cMelder = document.createElement("div"); cMelder.className = "ci-melder"; cMelder.textContent = v.melder;
+
+        var cActs = document.createElement("div"); cActs.className = "ci-acts";
+        var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
+        noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+        cActs.appendChild(noteBtn);
+        var art = articleByNr(v.art_nr);
+        if (art && art.produktLink) {
+          var sh = document.createElement("button"); sh.className = "cg-mini"; sh.textContent = "🔗 Shop"; sh.title = "Produkt im Shop öffnen";
+          sh.addEventListener("click", function () { window.open(art.produktLink, "_blank"); });
+          cActs.appendChild(sh);
+        }
+        var ok = document.createElement("button"); ok.className = "cg-mini ok"; ok.textContent = "✓ bestellt";
+        ok.addEventListener("click", function () { markBestellt(v.id); });
+        var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
+        dl.addEventListener("click", function () { deleteVormerkung(v.id); });
+        cActs.appendChild(ok); cActs.appendChild(dl);
+
+        row.appendChild(cMenge); row.appendChild(cMain); row.appendChild(cDring); row.appendChild(cKomm); row.appendChild(cMelder); row.appendChild(cActs);
+        box.appendChild(row);
+      });
+      cockpit.appendChild(box);
+    });
+    renderDone();
+  }
+  function renderDone() {
+    var done = vormCache.filter(function (v) { return v.status === "bestellt"; });
+    doneCount.textContent = "(" + done.length + ")";
+    doneList.innerHTML = "";
+    if (!done.length) { var e = document.createElement("div"); e.className = "v-empty"; e.textContent = "Noch nichts bestellt."; doneList.appendChild(e); return; }
+
+    var colhead = document.createElement("div"); colhead.className = "cg-item cg-colhead";
+    colhead.innerHTML = "<div>Menge</div><div>Artikel</div><div>Bestellt am</div><div>Kommission</div><div>Melder</div><div>Aktionen</div>";
+    doneList.appendChild(colhead);
+
+    done.forEach(function (v) {
+      var row = document.createElement("div"); row.className = "cg-item";
+
+      var cMenge = document.createElement("div"); cMenge.className = "ci-menge"; cMenge.textContent = v.menge + "×";
+
+      var cMain = document.createElement("div"); cMain.className = "ci-main";
+      var bez = document.createElement("div"); bez.className = "ci-bez"; bez.textContent = v.bezeichnung; cMain.appendChild(bez);
+      if (v.kommentar) { var cmt = document.createElement("div"); cmt.className = "ci-extra"; cmt.textContent = "💬 " + v.kommentar; cMain.appendChild(cmt); }
+      if (v.besteller_notiz) { var nz = document.createElement("div"); nz.className = "v-notiz"; nz.style.marginTop = "4px"; nz.textContent = "📝 " + v.besteller_notiz; cMain.appendChild(nz); }
+
+      var cDate = document.createElement("div"); cDate.className = "ci-dring";
+      cDate.innerHTML = '<span class="badge done">✓ ' + (fmtDate(v.bestellt_am).split(" ")[0] || "") + "</span>";
+
+      var cKomm = document.createElement("div"); cKomm.className = "ci-komm"; cKomm.textContent = v.kommission || "";
+      var cMelder = document.createElement("div"); cMelder.className = "ci-melder"; cMelder.textContent = v.melder;
+
+      var cActs = document.createElement("div"); cActs.className = "ci-acts";
+      var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
+      noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+      var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
+      dl.addEventListener("click", function () { deleteVormerkung(v.id); });
+      cActs.appendChild(noteBtn); cActs.appendChild(dl);
+
+      row.appendChild(cMenge); row.appendChild(cMain); row.appendChild(cDate); row.appendChild(cKomm); row.appendChild(cMelder); row.appendChild(cActs);
+      doneList.appendChild(row);
+    });
+  }
+  function markBestellt(id) {
+    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", id).then(function (r) {
+      if (r.error) { toast("Fehler", true); return; }
+      refreshVormerkungen();
+    });
+  }
+  function markGroupBestellt(items) {
+    if (!items.length) return;
+    if (!window.confirm("Alle " + items.length + " Positionen als bestellt markieren?")) return;
+    var ids = items.map(function (v) { return v.id; });
+    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).in("id", ids).then(function (r) {
+      if (r.error) { toast("Fehler", true); return; }
+      toast(items.length + " als bestellt markiert"); refreshVormerkungen();
+    });
+  }
+  function gmailDraft(g) {
+    var recipient = "";
+    for (var i = 0; i < g.items.length; i++) { var a = articleByNr(g.items[i].art_nr); if (a && a.bestellMail) { recipient = a.bestellMail; break; } }
+    var koms = [];
+    g.items.forEach(function (v) { var k = (v.kommission || "").trim(); if (k && koms.indexOf(k) < 0) koms.push(k); });
+    var subject = koms.length ? ("Bestellung Kom. " + koms.join(", ")) : ("Bestellung " + g.lieferant);
+    var lines = g.items.map(function (v) {
+      return "- " + v.menge + "x " + v.bezeichnung + (v.art_nr ? " (Art-Nr " + v.art_nr + ")" : "") +
+        (v.kommission ? " [Komm.: " + v.kommission + "]" : "") + (v.kommentar ? " – " + v.kommentar : "");
+    });
+    var body = "Hallo zusammen,\n\nhiermit möchte ich gerne folgende Artikel bestellen:\n\n" + lines.join("\n") +
+      "\n\nVielen Dank und" + (MAIL_SIGNATUR ? "\n" + MAIL_SIGNATUR : "") + "\n";
+    var url = "https://mail.google.com/mail/?view=cm&fs=1" +
+      (recipient ? "&to=" + encodeURIComponent(recipient) : "") +
+      "&su=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
+    window.open(url, "_blank");
+  }
+
+  // ===== Artikelauswahl / Formular =====
+  function selectArticle(article) {
+    currentArticle = article; currentFreitext = false;
+    formPanel.classList.remove("freitext"); freitextField.style.display = "none";
+    fpBadge.textContent = "✓ Ausgewählter Artikel"; fpName.textContent = article.bezeichnung;
+    var bits = [];
+    if (article.lieferant) bits.push("Lieferant: " + article.lieferant);
+    var nr = primaryNr(article); if (nr) bits.push("Nr: " + nr);
+    if (article.lagerort) bits.push("Lager: " + article.lagerort);
+    fpSub.textContent = bits.join("  ·  ");
+    showDupHint(article, "");
+    openForm();
+  }
+  function selectFreitext(prefill) {
+    currentArticle = null; currentFreitext = true;
+    formPanel.classList.add("freitext");
+    fpBadge.textContent = "✏️ Freier Wunsch (nicht im Stamm)"; fpName.textContent = "";
+    fpSub.textContent = "Artikel ist nicht im Stamm — bitte kurz beschreiben.";
+    freitextField.style.display = "block"; freitextName.value = prefill || "";
+    fpHint.style.display = "none";
+    openForm();
+    setTimeout(function () { freitextName.focus(); }, 50);
+  }
+  function openForm() {
+    mengeInput.value = "1"; setDringlichkeit("normal"); kommissionInput.value = ""; kommentarInput.value = "";
+    formPanel.classList.add("show"); searchResults.innerHTML = ""; searchInput.value = "";
+    formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function closeForm() { formPanel.classList.remove("show"); currentArticle = null; currentFreitext = false; setStatus(""); }
+  function setDringlichkeit(level) {
+    dringlichkeit = level;
+    var btns = dringSeg.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute("data-active", btns[i].getAttribute("data-level") === level ? "1" : "0");
+  }
+  function showDupHint(article, freitextBez) {
+    var key = article ? normLoose(primaryNr(article)) : "";
+    var fbez = (freitextBez || "").toLowerCase();
+    var openMatch = null, lastOrdered = null;
+    vormCache.forEach(function (v) {
+      var vKey = normLoose(v.art_nr || "");
+      var same = (article && key && vKey && vKey === key) || (!article && fbez && (v.bezeichnung || "").toLowerCase() === fbez);
+      if (!same) return;
+      if (v.status === "bestellt") { if (!lastOrdered || (v.bestellt_am || "") > (lastOrdered.bestellt_am || "")) lastOrdered = v; }
+      else { if (!openMatch) openMatch = v; }
+    });
+    var parts = [];
+    if (openMatch) parts.push("⚠️ Schon vorgemerkt von " + escapeHtml(openMatch.melder) + " am " + fmtDate(openMatch.created_at));
+    if (lastOrdered) parts.push("🕓 Zuletzt bestellt am " + fmtDate(lastOrdered.bestellt_am));
+    fpHint.innerHTML = parts.join("<br>");
+    fpHint.style.display = parts.length ? "block" : "none";
+  }
+  function saveVormerkung() {
+    if (!currentMelder) { showGate(); return; }
+    var bezeichnung, lieferant = "", warengruppe = "", artNr = "", isFrei = false;
+    if (currentFreitext) {
+      bezeichnung = freitextName.value.trim();
+      if (!bezeichnung) { toast("Bitte beschreiben, was bestellt werden soll", true); freitextName.focus(); return; }
+      isFrei = true;
+    } else if (currentArticle) {
+      bezeichnung = currentArticle.bezeichnung; lieferant = currentArticle.lieferant || "";
+      warengruppe = currentArticle.warengruppe || ""; artNr = primaryNr(currentArticle);
+    } else return;
+    var menge = parseInt(mengeInput.value, 10); if (!menge || menge < 1) menge = 1;
+    var row = {
+      melder: currentMelder, bezeichnung: bezeichnung, art_nr: artNr, lieferant: lieferant, warengruppe: warengruppe,
+      is_freitext: isFrei, menge: menge, dringlichkeit: dringlichkeit,
+      kommission: kommissionInput.value.trim(), kommentar: kommentarInput.value.trim()
+    };
+    saveBtn.disabled = true;
+    db.from("vormerkungen").insert([row]).then(function (r) {
+      saveBtn.disabled = false;
+      if (r.error) { console.error("insert", r.error); toast("Fehler beim Speichern", true); return; }
+      closeForm(); beep(); toast("Vorgemerkt: " + menge + "× " + shorten(bezeichnung, 26));
+      refreshVormerkungen();
+    });
+  }
+  function shorten(s, n) { s = s || ""; return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+  function renderSearch() {
+    var q = searchInput.value;
+    if (!q.trim()) { searchResults.innerHTML = ""; return; }
+    var hits = searchArticles(q); searchResults.innerHTML = "";
+    if (!hits.length) {
+      var e = document.createElement("li"); e.className = "sr-empty"; e.textContent = "Kein Treffer — als freien Wunsch eintragen?";
+      e.addEventListener("click", function () { selectFreitext(q.trim()); }); searchResults.appendChild(e); return;
+    }
+    var MAX = 500;
+    var shown = hits.length > MAX ? hits.slice(0, MAX) : hits;
+    shown.forEach(function (a) {
+      var li = document.createElement("li");
+      var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
+      var mt = document.createElement("div"); mt.className = "sr-meta"; var nr = primaryNr(a);
+      mt.textContent = (a.lieferant || "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
+      li.appendChild(nm); li.appendChild(mt);
+      li.addEventListener("click", function () { selectArticle(a); });
+      searchResults.appendChild(li);
+    });
+    if (hits.length > MAX) {
+      var more = document.createElement("li"); more.className = "sr-empty"; more.style.cursor = "default";
+      more.textContent = "… und " + (hits.length - MAX) + " weitere Treffer. Bitte Suchbegriff ergänzen.";
+      searchResults.appendChild(more);
+    }
+  }
+
+  // ===== Kamera =====
+  function qrboxFn(vw, vh) { var w = Math.floor(Math.min(vw, 420) * 0.85); var h = Math.floor(Math.min(vh * 0.6, w * 0.55)); return { width: w, height: h }; }
+  function finishScan() {
+    if (!scanner || !running || stopping) return;
+    stopping = true; zoomWrap.style.display = "none";
+    scanner.stop().then(done).catch(done);
+    function done() { running = false; stopping = false; startBtn.textContent = "📷 Nächsten scannen"; startBtn.classList.add("go"); startBtn.disabled = false; switchBtn.disabled = true; }
+  }
+  function onScan(decodedText, result) {
+    if (stopping || !running) return;
+    var t = Date.now();
+    if (decodedText === lastValue && (t - lastAt) < 2000) { lastAt = t; return; }
+    lastValue = decodedText; lastAt = t;
+    var hit = lookup(decodedText);
+    beep(); flashSuccess(); finishScan();
+    if (hit) { selectArticle(hit.article); setStatus("✓ Erkannt: " + hit.article.bezeichnung); }
+    else { selectFreitext(""); setStatus("Code " + decodedText + " ist nicht im Stamm — als freien Wunsch erfassen."); }
+  }
+  function onScanError() {}
+  function startWith(deviceId) { var cameraArg = deviceId ? deviceId : { facingMode: "environment" }; return scanner.start(cameraArg, { fps: 12, qrbox: qrboxFn, formatsToSupport: formats }, onScan, onScanError); }
+  function tryApply(c) { try { var p = scanner.applyVideoConstraints(c); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+  function setupCameraCapabilities() {
+    tryApply({ width: { ideal: 1920 }, height: { ideal: 1080 } });
+    tryApply({ advanced: [{ focusMode: "continuous" }] });
+    var caps = {}; try { caps = scanner.getRunningTrackCapabilities() || {}; } catch (e) {}
+    if (caps.zoom && typeof caps.zoom.min === "number" && caps.zoom.max > caps.zoom.min) {
+      zoomRange.min = caps.zoom.min; zoomRange.max = caps.zoom.max; zoomRange.step = caps.zoom.step || 0.1; zoomRange.value = caps.zoom.min; zoomWrap.style.display = "flex";
+    } else zoomWrap.style.display = "none";
+  }
+  function applyZoom() { try { scanner.applyVideoConstraints({ advanced: [{ zoom: parseFloat(zoomRange.value) }] }); } catch (e) {} }
+  function startScanning() {
+    if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kamera braucht HTTPS."); return; }
+    if (running) return;
+    startBtn.classList.remove("go"); lastValue = ""; lastAt = 0; startBtn.disabled = true; setStatus("Kamera wird gestartet …");
+    if (!scanner) scanner = new Html5Qrcode("reader", { formatsToSupport: formats, verbose: false });
+    Html5Qrcode.getCameras().then(function (devs) {
+      cameras = devs || []; var deviceId = null;
+      if (cameras.length > 0) {
+        var backIdx = -1;
+        for (var i = 0; i < cameras.length; i++) { var lbl = (cameras[i].label || "").toLowerCase(); if (lbl.indexOf("back") >= 0 || lbl.indexOf("rück") >= 0 || lbl.indexOf("environment") >= 0) { backIdx = i; break; } }
+        camIndex = backIdx >= 0 ? backIdx : cameras.length - 1; deviceId = cameras[camIndex].id; switchBtn.disabled = cameras.length < 2;
+      }
+      return startWith(deviceId);
+    }).then(function () {
+      running = true; startBtn.textContent = "Scan stoppen"; startBtn.disabled = false; setStatus("Bereit — Barcode ins Bild halten."); setupCameraCapabilities();
+    }).catch(function (err) { startBtn.disabled = false; handleStartError(err); });
+  }
+  function handleStartError(err) {
+    var name = (err && err.name) ? err.name : "", msg = (err && err.message) ? err.message : String(err);
+    if (name === "NotAllowedError" || /permission|denied/i.test(msg)) setStatus("Kamerazugriff verweigert. Bitte erlauben.");
+    else if (name === "NotFoundError" || /no camera|not found/i.test(msg)) setStatus("Keine Kamera gefunden.");
+    else if (!isSecure()) { warningEl.classList.add("show"); setStatus("Kamera braucht HTTPS."); }
+    else setStatus("Start fehlgeschlagen: " + msg);
+  }
+  function stopScanning() {
+    if (!scanner || !running) return;
+    startBtn.disabled = true; zoomWrap.style.display = "none";
+    scanner.stop().then(done).catch(done);
+    function done() { running = false; startBtn.textContent = "📷 Scan starten"; startBtn.disabled = false; setStatus("Gestoppt."); }
+  }
+  function switchCamera() {
+    if (!scanner || !running || cameras.length < 2) return;
+    switchBtn.disabled = true;
+    scanner.stop().then(function () { camIndex = (camIndex + 1) % cameras.length; return startWith(cameras[camIndex].id); })
+      .then(function () { switchBtn.disabled = false; setupCameraCapabilities(); })
+      .catch(function (err) { switchBtn.disabled = false; handleStartError(err); });
+  }
+
+  // ===== Test-Barcodes =====
+  var TEST_CODES = [
+    { code: "100742", note: "3M Rakel gold (Lief.-Nr)" },
+    { code: "101655", note: "NT-Cutter Klingen (Lief.-Nr)" },
+    { code: "4024092137600", note: "Jacob Verschlussstopfen" },
+    { code: "GES1758509", note: "GESIPA Blindnietmutter (Lief.-Nr)" },
+    { code: "99999999", note: "Absichtlich unbekannt" }
+  ];
+  function renderBarcodes() {
+    if (typeof JsBarcode === "undefined") { barcodesEl.innerHTML = '<p class="tc-hint" style="color:var(--warn)">Barcode-Bibliothek nicht geladen. Nutze solange die Suche.</p>'; return; }
+    TEST_CODES.forEach(function (tc) {
+      var card = document.createElement("div"); card.className = "bc";
+      var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); card.appendChild(svg);
+      var lbl = document.createElement("div"); lbl.className = "bc-label"; lbl.textContent = tc.note; card.appendChild(lbl);
+      barcodesEl.appendChild(card);
+      try { JsBarcode(svg, tc.code, { format: "CODE128", width: 2, height: 50, fontSize: 13, margin: 6 }); } catch (e) { lbl.textContent = "Fehler: " + tc.code; }
+    });
+  }
+
+  // ===== Realtime =====
+  function subscribeRealtime() {
+    try {
+      db.channel("mv-changes")
+        .on("postgres_changes", { event: "*", schema: "public", table: "vormerkungen" }, function () { refreshVormerkungen(); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "namen" }, function () {
+          fetchNames().then(function () { if (gate.classList.contains("show")) renderGate(); if (besteller.classList.contains("show")) renderAdminNames(); });
+        })
+        .subscribe();
+    } catch (e) { console.warn("Realtime nicht verfügbar", e); }
+  }
+
+  // ===== Events + Init =====
+  lastUserBtn.addEventListener("click", function () { var last = ""; try { last = localStorage.getItem(LS_MELDER) || ""; } catch (e) {} enterApp(last); });
+  changeNameBtn.addEventListener("click", showGate);
+  openBestellerBtn.addEventListener("click", openBesteller);
+  bestellerBack.addEventListener("click", showGate);
+  addNameBtn.addEventListener("click", function () { var v = newNameInput.value.trim(); if (!v) { newNameInput.focus(); return; } addName(v).then(function (ok) { if (ok) { newNameInput.value = ""; renderAdminNames(); toast("Name hinzugefügt"); } }); });
+  clearAllBtn.addEventListener("click", clearAllVormerkungen);
+  importBtn.addEventListener("click", doImport);
+  startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
+  switchBtn.addEventListener("click", switchCamera);
+  refreshBtn.addEventListener("click", function () { refreshVormerkungen().then(function () { toast("Aktualisiert"); }); });
+  zoomRange.addEventListener("input", applyZoom);
+  searchInput.addEventListener("input", renderSearch);
+  freitextBtn.addEventListener("click", function () { selectFreitext(searchInput.value.trim()); });
+  dringSeg.addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) setDringlichkeit(b.getAttribute("data-level")); });
+  cancelBtn.addEventListener("click", closeForm);
+  saveBtn.addEventListener("click", saveVormerkung);
+
+  buildIndex();
+  artCountEl.textContent = ARTICLES.length;
+  loadArticles(); // echten Stamm aus der Cloud nachladen (ersetzt Testdaten, falls vorhanden)
+  renderBarcodes();
+  if (!isSecure()) warningEl.classList.add("show");
+  subscribeRealtime();
+  refreshVormerkungen();
+  showGate();
+})();
+</script>
+</body>
+</html>
