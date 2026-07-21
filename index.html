@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
-<title>MV Bestell-Scanner — Phase 4: Excel-Import</title>
+<title>MV Bestell-Scanner</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   :root {
@@ -248,13 +248,8 @@
     </details>
 
     <details class="testcodes">
-      <summary>📄 Artikelstamm (Excel-Import)</summary>
-      <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Eine neue Merger-Excel hochladen <b>ersetzt</b> den kompletten Stamm.</p>
-      <div class="gate-entry" style="margin-bottom:6px;">
-        <input id="importFile" type="file" accept=".xlsx,.xls" style="padding:9px; font-size:0.85rem;">
-        <button id="importBtn">Import</button>
-      </div>
-      <div class="status" id="importStatus" style="text-align:left; min-height:0;"></div>
+      <summary>📄 Artikelstamm</summary>
+      <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Der Stamm wird zentral aus Supabase geladen und über das MV-Ingest-Tool gepflegt — hier ist kein Import mehr nötig.</p>
     </details>
   </div>
 </div>
@@ -388,11 +383,12 @@
     var n = norm(c); if (!(n in idx)) idx[n] = { article: article, matchField: field, matchValue: c };
     var nl = normLoose(c); if (!(nl in idx)) idx[nl] = { article: article, matchField: field, matchValue: c };
   }
-  function buildIndex() { idx = Object.create(null); ARTICLES.forEach(function (a) { addToIndex(a.artNrLieferant, a, "Lieferanten-Nr"); addToIndex(a.artNrHersteller, a, "Hersteller-Nr"); }); }
+  function buildIndex() { idx = Object.create(null); ARTICLES.forEach(function (a) { addToIndex(a.mvNr, a, "MV-Nr"); addToIndex(a.mvCode, a, "MV-Code"); addToIndex(a.artNrLieferant, a, "Lieferanten-Nr"); addToIndex(a.artNrHersteller, a, "Hersteller-Nr"); }); }
 
   // ===== Artikelstamm aus Cloud laden / Import =====
   function mapCloudArticle(r) {
     return {
+      mvNr: r.mv_nr, mvCode: r.mv_code,
       bezeichnung: r.bezeichnung, artNrLieferant: r.art_nr_lieferant, artNrHersteller: r.art_nr_hersteller,
       lieferant: r.lieferant, hersteller: r.hersteller, warengruppe: r.warengruppe, lagerort: r.lagerort,
       vpe: r.vpe, ek: r.ek, bestellweg: r.bestellweg, bestellMail: r.bestell_mail, produktLink: r.produktlink
@@ -456,35 +452,8 @@
     });
     return out;
   }
-  function doImport() {
-    var f = importFile.files && importFile.files[0];
-    if (!f) { toast("Bitte zuerst eine Excel-Datei wählen", true); return; }
-    if (typeof XLSX === "undefined") { importStatus.textContent = "Excel-Bibliothek nicht geladen (Internet?)."; return; }
-    importBtn.disabled = true; importStatus.textContent = "Lese Datei …";
-    f.arrayBuffer().then(function (buf) {
-      var parsed;
-      try { parsed = parseExcel(buf); } catch (e) { importStatus.textContent = "Datei konnte nicht gelesen werden: " + e.message; importBtn.disabled = false; return; }
-      if (!parsed.length) { importStatus.textContent = "Keine Artikel in der Datei gefunden."; importBtn.disabled = false; return; }
-      importStatus.textContent = parsed.length + " Artikel gefunden. Alten Stamm ersetzen …";
-      db.from("artikel").delete().not("id", "is", null).then(function (del) {
-        if (del.error) { importStatus.textContent = "Fehler beim Leeren: " + del.error.message; importBtn.disabled = false; return; }
-        var CHUNK = 400, done = 0;
-        function next() {
-          if (done >= parsed.length) {
-            loadArticles().then(function () { importStatus.textContent = "✓ " + done + " Artikel importiert."; toast(done + " Artikel importiert"); importBtn.disabled = false; });
-            return;
-          }
-          var chunk = parsed.slice(done, done + CHUNK);
-          db.from("artikel").insert(chunk).then(function (ins) {
-            if (ins.error) { importStatus.textContent = "Fehler beim Speichern: " + ins.error.message; importBtn.disabled = false; return; }
-            done += chunk.length; importStatus.textContent = "Speichere … " + done + "/" + parsed.length;
-            next();
-          });
-        }
-        next();
-      });
-    });
-  }
+  // Excel-Import wurde entfernt: Der Artikelstamm wird jetzt zentral in Supabase geführt
+  // und über das MV-Ingest-Tool gepflegt. Die App liest den Stamm nur noch (kein delete/insert).
   function lookup(code) { var n = norm(code); if (idx[n]) return idx[n]; var nl = normLoose(code); return idx[nl] || null; }
   function primaryNr(a) {
     var l = (a.artNrLieferant || "").trim(); if (l && l !== "-") return l;
@@ -503,7 +472,7 @@
     var qLoose = normLoose(q);
     if (qLoose) {
       var exact = ARTICLES.filter(function (a) {
-        return normLoose(a.artNrLieferant) === qLoose || normLoose(a.artNrHersteller) === qLoose;
+        return String(a.mvNr) === qLoose || normLoose(a.mvCode) === qLoose || normLoose(a.artNrLieferant) === qLoose || normLoose(a.artNrHersteller) === qLoose;
       });
       if (exact.length) return exact;
     }
@@ -540,7 +509,7 @@
   var openBestellerBtn = $("openBestellerBtn"), besteller = $("besteller"), bestellerBack = $("bestellerBack");
   var newNameInput = $("newNameInput"), addNameBtn = $("addNameBtn"), adminList = $("adminList"), adminVCount = $("adminVCount"), clearAllBtn = $("clearAllBtn");
   var cockpit = $("cockpit"), doneList = $("doneList"), doneCount = $("doneCount");
-  var importFile = $("importFile"), importBtn = $("importBtn"), importStatus = $("importStatus"), artikelCount = $("artikelCount");
+  var artikelCount = $("artikelCount");
   var searchInput = $("searchInput"), searchResults = $("searchResults"), freitextBtn = $("freitextBtn");
   var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub"), fpHint = $("fpHint");
   var freitextField = $("freitextField"), freitextName = $("freitextName");
@@ -1063,7 +1032,6 @@
   bestellerBack.addEventListener("click", showGate);
   addNameBtn.addEventListener("click", function () { var v = newNameInput.value.trim(); if (!v) { newNameInput.focus(); return; } addName(v).then(function (ok) { if (ok) { newNameInput.value = ""; renderAdminNames(); toast("Name hinzugefügt"); } }); });
   clearAllBtn.addEventListener("click", clearAllVormerkungen);
-  importBtn.addEventListener("click", doImport);
   startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
   switchBtn.addEventListener("click", switchCamera);
   refreshBtn.addEventListener("click", function () { refreshVormerkungen().then(function () { toast("Aktualisiert"); }); });
