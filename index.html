@@ -259,11 +259,6 @@
       </div>
       <ul id="adminList"></ul>
     </details>
-
-    <details class="testcodes">
-      <summary>📄 Artikelstamm</summary>
-      <p class="tc-hint">Aktuell geladen: <b id="artikelCount">–</b>. Der Stamm wird zentral aus Supabase geladen und über das MV-Ingest-Tool gepflegt — hier ist kein Import mehr nötig.</p>
-    </details>
   </div>
 </div>
 
@@ -352,12 +347,6 @@
     <button class="ghost" id="refreshBtn">⟳ Aktualisieren</button>
   </div>
   <ul id="vlist"></ul>
-
-  <details class="testcodes">
-    <summary>🧪 Test-Barcodes zum Abscannen</summary>
-    <p class="tc-hint">Echte Artikelnummern aus deinem Stamm als Code 128 — zum Testen vom Bildschirm abscannen. Der letzte ist absichtlich nicht im Stamm.</p>
-    <div id="barcodes"></div>
-  </details>
 
   <footer>
     Die Liste liegt <b>zentral in der Cloud</b> — jede Vormerkung erscheint auf allen Geräten.
@@ -529,7 +518,7 @@
   var cancelBtn = $("cancelBtn"), saveBtn = $("saveBtn"), vlist = $("vlist"), vCount = $("vCount"), barcodesEl = $("barcodes"), artCountEl = $("artCount");
 
   var scanner = null, running = false, stopping = false, cameras = [], camIndex = 0, lastValue = "", lastAt = 0, audioCtx = null;
-  var currentArticle = null, currentFreitext = false, dringlichkeit = "normal", currentMelder = "";
+  var currentArticle = null, currentFreitext = false, dringlichkeit = "normal", currentMelder = "", editingId = "";
   var vormCache = [], namesCache = [];
   var LS_MELDER = "mv_melder";
 
@@ -557,9 +546,13 @@
     var li = document.createElement("li");
     var top = document.createElement("div"); top.className = "v-top";
     var name = document.createElement("div"); name.className = "v-name"; name.textContent = v.bezeichnung;
-    var del = document.createElement("button"); del.className = "v-del"; del.innerHTML = "✕"; del.title = "Löschen";
-    del.addEventListener("click", function () { deleteVormerkung(v.id); });
-    top.appendChild(name); top.appendChild(del); li.appendChild(top);
+    top.appendChild(name);
+    if (forAdmin || v.melder === currentMelder) {
+      var del = document.createElement("button"); del.className = "v-del"; del.innerHTML = "✕"; del.title = "Löschen";
+      del.addEventListener("click", function () { deleteVormerkung(v.id); });
+      top.appendChild(del);
+    }
+    li.appendChild(top);
     var meta = document.createElement("div"); meta.className = "v-meta";
     meta.innerHTML =
       '<span class="badge menge">' + v.menge + "×</span>" +
@@ -572,6 +565,11 @@
     li.appendChild(meta);
     if (v.kommentar) { var c = document.createElement("div"); c.className = "v-comment"; c.textContent = "💬 " + v.kommentar; li.appendChild(c); }
     if (v.besteller_notiz) { var n = document.createElement("div"); n.className = "v-notiz"; n.textContent = "📝 " + v.besteller_notiz; li.appendChild(n); }
+    if (v.status !== "bestellt" && (forAdmin || v.melder === currentMelder)) {
+      var eb = document.createElement("button"); eb.className = "v-notizbtn"; eb.textContent = "✎ Bearbeiten"; eb.style.marginRight = "8px";
+      eb.addEventListener("click", function () { editVormerkung(v); });
+      li.appendChild(eb);
+    }
     if (forAdmin) {
       var nb = document.createElement("button"); nb.className = "v-notizbtn";
       nb.textContent = v.besteller_notiz ? "📝 Notiz bearbeiten" : "📝 Notiz hinzufügen";
@@ -587,6 +585,23 @@
       if (r.error) { toast("Fehler beim Speichern der Notiz", true); return; }
       refreshVormerkungen();
     });
+  }
+  function editVormerkung(v) {
+    editingId = v.id;
+    currentArticle = null; currentFreitext = false;
+    formPanel.classList.remove("freitext"); freitextField.style.display = "none";
+    fpBadge.textContent = "✎ Bestellung bearbeiten";
+    fpName.textContent = v.bezeichnung;
+    var bits = [];
+    if (v.lieferant) bits.push("Lieferant: " + v.lieferant);
+    if (v.art_nr) bits.push("Nr: " + v.art_nr);
+    fpSub.textContent = bits.join("  ·  ");
+    fpHint.style.display = "none";
+    mengeInput.value = v.menge; setDringlichkeit(v.dringlichkeit || "normal");
+    kommissionInput.value = v.kommission || ""; kommentarInput.value = v.kommentar || "";
+    saveBtn.textContent = "Änderung speichern";
+    formPanel.classList.add("show"); searchResults.innerHTML = ""; searchInput.value = "";
+    formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   }
   function renderVormerkungen() {
     vCount.textContent = "(" + vormCache.length + ")";
@@ -665,6 +680,7 @@
     currentUserEl.textContent = name;
     gate.classList.remove("show"); besteller.classList.remove("show");
     appEl.style.display = "block";
+    renderVormerkungen(); // Liste neu rendern, damit eigene Lösch-/Bearbeiten-Buttons erscheinen
   }
   function showGate() { appEl.style.display = "none"; besteller.classList.remove("show"); gate.classList.add("show"); renderGate(); }
 
@@ -858,11 +874,12 @@
     setTimeout(function () { freitextName.focus(); }, 50);
   }
   function openForm() {
+    editingId = ""; saveBtn.textContent = "Vormerken";
     mengeInput.value = "1"; setDringlichkeit("normal"); kommissionInput.value = ""; kommentarInput.value = "";
     formPanel.classList.add("show"); searchResults.innerHTML = ""; searchInput.value = "";
     formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   }
-  function closeForm() { formPanel.classList.remove("show"); currentArticle = null; currentFreitext = false; setStatus(""); }
+  function closeForm() { formPanel.classList.remove("show"); currentArticle = null; currentFreitext = false; editingId = ""; saveBtn.textContent = "Vormerken"; setStatus(""); }
   function setDringlichkeit(level) {
     dringlichkeit = level;
     var btns = dringSeg.querySelectorAll("button");
@@ -887,6 +904,16 @@
   }
   function saveVormerkung() {
     if (!currentMelder) { showGate(); return; }
+    if (editingId) {
+      var mengeE = parseInt(mengeInput.value, 10); if (!mengeE || mengeE < 1) mengeE = 1;
+      saveBtn.disabled = true;
+      db.from("vormerkungen").update({ menge: mengeE, dringlichkeit: dringlichkeit, kommission: kommissionInput.value.trim(), kommentar: kommentarInput.value.trim() }).eq("id", editingId).then(function (r) {
+        saveBtn.disabled = false;
+        if (r.error) { console.error("update", r.error); toast("Fehler beim Speichern", true); return; }
+        closeForm(); toast("Änderung gespeichert"); refreshVormerkungen();
+      });
+      return;
+    }
     var bezeichnung, lieferant = "", warengruppe = "", artNr = "", isFrei = false;
     if (currentFreitext) {
       bezeichnung = freitextName.value.trim();
@@ -926,7 +953,8 @@
       var li = document.createElement("li");
       var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
       var mt = document.createElement("div"); mt.className = "sr-meta"; var nr = primaryNr(a);
-      mt.textContent = (a.lieferant || "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
+      var mv = a.mvCode || (a.mvNr != null && a.mvNr !== "" ? "MV-" + a.mvNr : "");
+      mt.textContent = (mv ? mv + "  ·  " : "") + (a.lieferant || "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
       li.appendChild(nm); li.appendChild(mt);
       li.addEventListener("click", function () { selectArticle(a); });
       searchResults.appendChild(li);
@@ -1057,7 +1085,6 @@
   buildIndex();
   artCountEl.textContent = ARTICLES.length;
   loadArticles(); // echten Stamm aus der Cloud nachladen (ersetzt Testdaten, falls vorhanden)
-  renderBarcodes();
   if (!isSecure()) warningEl.classList.add("show");
   subscribeRealtime();
   refreshVormerkungen();
