@@ -787,7 +787,7 @@
           cActs.appendChild(sh);
         }
         var ok = document.createElement("button"); ok.className = "cg-mini ok"; ok.textContent = "✓ bestellt";
-        ok.addEventListener("click", function () { markBestellt(v.id); });
+        ok.addEventListener("click", function () { ok.disabled = true; markBestellt(v); });
         var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
         dl.addEventListener("click", function () { deleteVormerkung(v.id); });
         cActs.appendChild(ok); cActs.appendChild(dl);
@@ -828,16 +828,55 @@
       var cActs = document.createElement("div"); cActs.className = "ci-acts";
       var noteBtn = document.createElement("button"); noteBtn.className = "cg-mini"; noteBtn.textContent = "📝 Notiz"; noteBtn.title = "Notiz (Liefertermin/Verzögerung)";
       noteBtn.addEventListener("click", function () { editNotiz(v.id, v.besteller_notiz); });
+      var st = document.createElement("button"); st.className = "cg-mini"; st.textContent = "↩ Storno"; st.title = "Fehlbestellung: Eintrag im Bestell-Register als storniert markieren";
+      st.addEventListener("click", function () { stornoBestellung(v, st); });
       var dl = document.createElement("button"); dl.className = "cg-mini"; dl.textContent = "✕"; dl.title = "Löschen";
       dl.addEventListener("click", function () { deleteVormerkung(v.id); });
-      cActs.appendChild(noteBtn); cActs.appendChild(dl);
+      cActs.appendChild(noteBtn); cActs.appendChild(st); cActs.appendChild(dl);
 
       row.appendChild(cMenge); row.appendChild(cMain); row.appendChild(cDate); row.appendChild(cKomm); row.appendChild(cMelder); row.appendChild(cActs);
       doneList.appendChild(row);
     });
   }
-  function markBestellt(id) {
-    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", id).then(function (r) {
+  // ===== Bestell-Ledger: dauerhaftes Register (Tabelle "bestellungen") =====
+  function ledgerRow(v) {
+    var art = articleByNr(v.art_nr); // MV-Nr aus dem Stamm anreichern, falls Artikel bekannt
+    return {
+      melder: v.melder || "", quelle: "app", quelle_vormerkung_id: String(v.id),
+      mv_nr: (art && art.mvNr != null && art.mvNr !== "") ? art.mvNr : null,
+      bezeichnung: v.bezeichnung || "", art_nr: v.art_nr || "",
+      lieferant: v.lieferant || "", warengruppe: v.warengruppe || "",
+      is_freitext: !!v.is_freitext,
+      menge: v.menge || 1, kommission: v.kommission || "", kommentar: v.kommentar || ""
+    };
+  }
+  function writeLedger(items) {
+    return db.from("bestellungen").insert(items.map(ledgerRow)).then(function (r) {
+      if (r.error) { console.warn("bestellungen insert", r.error); toast("⚠️ Bestell-Register nicht erreichbar — Bestellung trotzdem markiert", true); }
+    });
+  }
+  function stornoBestellung(v, btn) {
+    // Register-Eintrag als storniert markieren (nicht löschen — Register bleibt lückenlos).
+    var grund = window.prompt("Bestellung im Register stornieren?\n" + v.menge + "× " + shorten(v.bezeichnung, 40) + "\n\nGrund eingeben (optional) — OK storniert, Abbrechen bricht ab:", "");
+    if (grund == null) return;
+    grund = grund.trim();
+    if (btn) btn.disabled = true;
+    db.from("bestellungen").select("id,kommentar").eq("quelle_vormerkung_id", String(v.id)).neq("lieferstatus", "storniert").then(function (r) {
+      if (r.error) { if (btn) btn.disabled = false; toast("Fehler beim Stornieren", true); return; }
+      if (!r.data || !r.data.length) { if (btn) btn.disabled = false; toast("Kein Register-Eintrag gefunden (Bestellung vor Register-Start?)", true); return; }
+      var row = r.data[0];
+      var upd = { lieferstatus: "storniert" };
+      if (grund) upd.kommentar = (row.kommentar ? row.kommentar + " | " : "") + "Storno: " + grund;
+      db.from("bestellungen").update(upd).eq("id", row.id).then(function (r2) {
+        if (btn) btn.disabled = false;
+        if (r2.error) { toast("Fehler beim Stornieren", true); return; }
+        toast("Im Register storniert");
+      });
+    });
+  }
+  function markBestellt(v) {
+    writeLedger([v]); // Register zuerst (läuft parallel; Fehler blockiert das Abhaken nicht)
+    db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).eq("id", v.id).then(function (r) {
       if (r.error) { toast("Fehler", true); return; }
       refreshVormerkungen();
     });
@@ -845,6 +884,7 @@
   function markGroupBestellt(items) {
     if (!items.length) return;
     if (!window.confirm("Alle " + items.length + " Positionen als bestellt markieren?")) return;
+    writeLedger(items);
     var ids = items.map(function (v) { return v.id; });
     db.from("vormerkungen").update({ status: "bestellt", bestellt_am: new Date().toISOString(), bestellt_von: "Besteller" }).in("id", ids).then(function (r) {
       if (r.error) { toast("Fehler", true); return; }
