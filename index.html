@@ -121,13 +121,13 @@
   .list-head h2 { font-size:.95rem; font-weight:700; margin:0; }
   .list-head .lh-count { color:var(--muted); }
   .list-head button { flex:0; padding:6px 12px; font-size:.8rem; }
-  #vlist, #adminList { list-style:none; margin:0; padding:0; }
-  #vlist li { background:var(--card); border:1px solid var(--line); border-radius:4px; padding:12px 14px; margin-bottom:8px; }
-  #vlist .v-top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
-  #vlist .v-name { font-weight:600; line-height:1.3; }
-  #vlist .v-del { flex:0 0 auto; background:transparent; border:none; color:var(--muted); font-size:1.2rem; padding:0 4px; cursor:pointer; width:auto; }
-  #vlist .v-meta { color:var(--muted); font-size:.76rem; margin-top:6px; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; }
-  #vlist .v-comment { font-size:.82rem; margin-top:6px; color:var(--text); }
+  .vlist, #adminList { list-style:none; margin:0; padding:0; }
+  .vlist li { background:var(--card); border:1px solid var(--line); border-radius:4px; padding:12px 14px; margin-bottom:8px; }
+  .vlist .v-top { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .vlist .v-name { font-weight:600; line-height:1.3; }
+  .vlist .v-del { flex:0 0 auto; background:transparent; border:none; color:var(--muted); font-size:1.2rem; padding:0 4px; cursor:pointer; width:auto; }
+  .vlist .v-meta { color:var(--muted); font-size:.76rem; margin-top:6px; display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; }
+  .vlist .v-comment { font-size:.82rem; margin-top:6px; color:var(--text); }
   .badge { display:inline-flex; align-items:center; padding:3px 9px; border-radius:3px; font-size:.72rem; font-weight:700; border:1px solid transparent; }
   .badge.menge { background:var(--card2); color:var(--text); border-color:var(--line); font-variant-numeric:tabular-nums; }
   .badge.normal { background:rgba(63,185,80,.12); color:#8fe0a1; }
@@ -136,7 +136,7 @@
   .badge.normal::before, .badge.dringend::before, .badge.sofort::before {
     content:""; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:currentColor; }
   .badge.freitext { background:rgba(224,138,43,.1); color:var(--warn); border:1px solid var(--warn); }
-  #vlist .v-empty, #adminList .v-empty { color:var(--muted); text-align:center; border:1px dashed var(--line); border-radius:4px; padding:14px; }
+  .vlist .v-empty, #adminList .v-empty { color:var(--muted); text-align:center; border:1px dashed var(--line); border-radius:4px; padding:14px; }
 
   /* Besteller: Namensverwaltung */
   #adminList li { display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:4px; padding:8px 12px; margin-bottom:6px; }
@@ -343,10 +343,20 @@
   <div class="status" id="status"></div>
 
   <div class="list-head">
-    <h2>Vorgemerkte Bestellungen <span class="lh-count" id="vCount">(0)</span></h2>
-    <button class="ghost" id="refreshBtn">⟳ Aktualisieren</button>
+    <h2 id="vlistTitle">Meine Bestellungen</h2>
+    <div style="display:flex; gap:8px; flex:0 0 auto;">
+      <button class="ghost" id="scopeToggle" style="flex:0 0 auto; width:auto; padding:6px 12px; font-size:.8rem;">👥 Alle anzeigen</button>
+      <button class="ghost" id="refreshBtn" style="flex:0 0 auto; width:auto; padding:6px 12px; font-size:.8rem;">⟳</button>
+    </div>
   </div>
-  <ul id="vlist"></ul>
+  <details class="testcodes" id="openWrap" open>
+    <summary>Offen <span class="lh-count" id="openCount">(0)</span></summary>
+    <ul class="vlist" id="vlistOpen" style="margin-top:10px;"></ul>
+  </details>
+  <details class="testcodes" id="doneWrapApp">
+    <summary>Bereits bestellt <span class="lh-count" id="doneCountApp">(0)</span> <span style="color:var(--muted); font-weight:400; font-size:.78rem;">· letzte 30 Tage</span></summary>
+    <ul class="vlist" id="vlistDone" style="margin-top:10px;"></ul>
+  </details>
 
   <footer>
     Die Liste liegt <b>zentral in der Cloud</b> — jede Vormerkung erscheint auf allen Geräten.
@@ -515,10 +525,10 @@
   var formPanel = $("formPanel"), fpBadge = $("fpBadge"), fpName = $("fpName"), fpSub = $("fpSub"), fpHint = $("fpHint");
   var freitextField = $("freitextField"), freitextName = $("freitextName");
   var mengeInput = $("mengeInput"), dringSeg = $("dringSeg"), kommissionInput = $("kommissionInput"), kommentarInput = $("kommentarInput");
-  var cancelBtn = $("cancelBtn"), saveBtn = $("saveBtn"), vlist = $("vlist"), vCount = $("vCount"), barcodesEl = $("barcodes"), artCountEl = $("artCount");
+  var cancelBtn = $("cancelBtn"), saveBtn = $("saveBtn"), vlistOpen = $("vlistOpen"), vlistDone = $("vlistDone"), openCount = $("openCount"), doneCountApp = $("doneCountApp"), scopeToggle = $("scopeToggle"), vlistTitle = $("vlistTitle"), barcodesEl = $("barcodes"), artCountEl = $("artCount");
 
   var scanner = null, running = false, stopping = false, cameras = [], camIndex = 0, lastValue = "", lastAt = 0, audioCtx = null;
-  var currentArticle = null, currentFreitext = false, dringlichkeit = "normal", currentMelder = "", editingId = "";
+  var currentArticle = null, currentFreitext = false, dringlichkeit = "normal", currentMelder = "", editingId = "", showAllVorm = false;
   var vormCache = [], namesCache = [];
   var LS_MELDER = "mv_melder";
 
@@ -603,11 +613,20 @@
     formPanel.classList.add("show"); searchResults.innerHTML = ""; searchInput.value = "";
     formPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   }
+  function fillVList(ul, arr, emptyText) {
+    ul.innerHTML = "";
+    if (!arr.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = emptyText; ul.appendChild(e); return; }
+    arr.forEach(function (v) { ul.appendChild(buildVItem(v)); });
+  }
   function renderVormerkungen() {
-    vCount.textContent = "(" + vormCache.length + ")";
-    vlist.innerHTML = "";
-    if (!vormCache.length) { var e = document.createElement("li"); e.className = "v-empty"; e.textContent = "Noch nichts vorgemerkt."; vlist.appendChild(e); return; }
-    vormCache.forEach(function (v) { vlist.appendChild(buildVItem(v)); });
+    var scope = showAllVorm ? vormCache : vormCache.filter(function (v) { return v.melder === currentMelder; });
+    var open = scope.filter(function (v) { return v.status !== "bestellt"; });
+    var cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    var done = scope.filter(function (v) { return v.status === "bestellt" && v.bestellt_am && new Date(v.bestellt_am).getTime() >= cutoff; });
+    fillVList(vlistOpen, open, showAllVorm ? "Keine offenen Bestellungen." : "Du hast aktuell nichts vorgemerkt.");
+    openCount.textContent = "(" + open.length + ")";
+    fillVList(vlistDone, done, showAllVorm ? "Nichts in den letzten 30 Tagen." : "Von dir nichts in den letzten 30 Tagen.");
+    doneCountApp.textContent = "(" + done.length + ")";
   }
   function deleteVormerkung(id) {
     return db.from("vormerkungen").delete().eq("id", id).then(function (r) {
@@ -1075,6 +1094,12 @@
   startBtn.addEventListener("click", function () { running ? stopScanning() : startScanning(); });
   switchBtn.addEventListener("click", switchCamera);
   refreshBtn.addEventListener("click", function () { refreshVormerkungen().then(function () { toast("Aktualisiert"); }); });
+  scopeToggle.addEventListener("click", function () {
+    showAllVorm = !showAllVorm;
+    scopeToggle.textContent = showAllVorm ? "🙋 Nur meine" : "👥 Alle anzeigen";
+    vlistTitle.textContent = showAllVorm ? "Alle Bestellungen" : "Meine Bestellungen";
+    renderVormerkungen();
+  });
   zoomRange.addEventListener("input", applyZoom);
   searchInput.addEventListener("input", renderSearch);
   freitextBtn.addEventListener("click", function () { selectFreitext(searchInput.value.trim()); });
