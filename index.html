@@ -88,7 +88,7 @@
   #zoomRange { -webkit-appearance:slider-vertical; appearance:slider-vertical; writing-mode:vertical-lr; direction:rtl;
     width:28px; height:150px; margin:0; accent-color:var(--accent); touch-action:none; }
 
-  #searchResults { list-style:none; margin:8px 0 0; padding:0; max-height:44vh; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; gap:6px; }
+  #searchResults { list-style:none; margin:8px 0 0; padding:0; max-height:55vh; overflow-y:auto; -webkit-overflow-scrolling:touch; display:flex; flex-direction:column; gap:6px; }
   #searchResults li { background:var(--card); border:1px solid var(--line); border-radius:4px; padding:10px 12px; cursor:pointer; }
   #searchResults li:active { background:var(--card2); }
   #searchResults .sr-name { font-weight:600; font-size:.92rem; line-height:1.25; }
@@ -401,7 +401,7 @@
     return {
       mvNr: r.mv_nr, mvCode: r.mv_code,
       bezeichnung: r.bezeichnung, artNrLieferant: r.art_nr_lieferant, artNrHersteller: r.art_nr_hersteller,
-      lieferant: r.lieferant, hersteller: r.hersteller, warengruppe: r.warengruppe, lagerort: r.lagerort,
+      lieferant: r.lieferant, hersteller: r.hersteller, warengruppe: r.warengruppe, lagerort: r.lagerort, mass: r.mass,
       vpe: r.vpe, ek: r.ek, bestellweg: r.bestellweg, bestellMail: r.bestell_mail, produktLink: r.produktlink
     };
   }
@@ -917,6 +917,7 @@
     var bits = [];
     if (article.lieferant) bits.push("Lieferant: " + article.lieferant);
     var nr = primaryNr(article); if (nr) bits.push("Nr: " + nr);
+    if (article.mass) bits.push("Maß: " + article.mass);
     if (article.lagerort) bits.push("Lager: " + article.lagerort);
     fpSub.textContent = bits.join("  ·  ");
     showDupHint(article, "");
@@ -1006,23 +1007,16 @@
       var e = document.createElement("li"); e.className = "sr-empty"; e.textContent = "Kein Treffer — als freien Wunsch eintragen?";
       e.addEventListener("click", function () { selectFreitext(q.trim()); }); searchResults.appendChild(e); return;
     }
-    var MAX = 500;
-    var shown = hits.length > MAX ? hits.slice(0, MAX) : hits;
-    shown.forEach(function (a) {
+    hits.forEach(function (a) {
       var li = document.createElement("li");
       var nm = document.createElement("div"); nm.className = "sr-name"; nm.textContent = a.bezeichnung;
       var mt = document.createElement("div"); mt.className = "sr-meta"; var nr = primaryNr(a);
       var mv = a.mvCode || (a.mvNr != null && a.mvNr !== "" ? "MV-" + a.mvNr : "");
-      mt.textContent = (mv ? mv + "  ·  " : "") + (a.lieferant || "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
+      mt.textContent = (mv ? mv + "  ·  " : "") + (a.lieferant || "") + (a.mass ? "  ·  " + a.mass : "") + (a.hersteller ? "  ·  " + a.hersteller : "") + (nr ? "  ·  " + nr : "");
       li.appendChild(nm); li.appendChild(mt);
       li.addEventListener("click", function () { selectArticle(a); });
       searchResults.appendChild(li);
     });
-    if (hits.length > MAX) {
-      var more = document.createElement("li"); more.className = "sr-empty"; more.style.cursor = "default";
-      more.textContent = "… und " + (hits.length - MAX) + " weitere Treffer. Bitte Suchbegriff ergänzen.";
-      searchResults.appendChild(more);
-    }
   }
 
   // ===== Kamera =====
